@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: log-collector
+  namespace: slo-scout
+  labels:
+    app: log-collector
+    component: collector
+spec:
+  selector:
+    matchLabels:
+      app: log-collector
+  template:
+    metadata:
+      labels:
+        app: log-collector
+    spec:
+      containers:
+      - name: log-collector
+        image: slo-scout/log-collector:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        ports:
+        - containerPort: 9090
+          name: http
+          protocol: TCP
+        - containerPort: 8080
+          name: health
+          protocol: TCP
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-collector
+  namespace: slo-scout
+spec:
+  selector:
+    app: log-collector
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+  - name: health
+    port: 8080
+    targetPort: 8080

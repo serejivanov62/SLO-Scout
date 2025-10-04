@@ -1,0 +1,819 @@
+# SLO-Scout Helm Chart Values
+# Environment: production (override for dev/staging)
+
+global:
+  environment: production
+  # Image registry configuration
+  imageRegistry: docker.io
+  imagePullSecrets: []
+  storageClass: ""
+
+# Namespace configuration
+namespaceOverride: "slo-scout"
+
+# =============================================================================
+# COLLECTORS (Go-based telemetry collectors)
+# =============================================================================
+
+collectors:
+  # Prometheus collector
+  prometheus:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: slo-scout/prometheus-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    # Prometheus remote_read endpoints
+    config:
+      prometheusUrl: "http://prometheus:9090"
+      scrapeInterval: "30s"
+      queryTimeout: "10s"
+
+    env:
+      - name: KAFKA_BOOTSTRAP_SERVERS
+        valueFrom:
+          configMapKeyRef:
+            name: slo-scout-config
+            key: KAFKA_BOOTSTRAP_SERVERS
+      - name: KAFKA_TOPIC
+        value: "raw-telemetry"
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+    service:
+      type: ClusterIP
+      port: 8080
+
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+  # OTLP collector
+  otlp:
+    enabled: true
+    replicaCount: 3
+    image:
+      repository: slo-scout/otlp-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+    # gRPC and HTTP ports for OTLP
+    service:
+      type: ClusterIP
+      grpcPort: 4317
+      httpPort: 4318
+
+    env:
+      - name: KAFKA_BOOTSTRAP_SERVERS
+        valueFrom:
+          configMapKeyRef:
+            name: slo-scout-config
+            key: KAFKA_BOOTSTRAP_SERVERS
+      - name: KAFKA_TOPIC
+        value: "raw-telemetry"
+      - name: OTLP_GRPC_ENDPOINT
+        value: "0.0.0.0:4317"
+      - name: OTLP_HTTP_ENDPOINT
+        value: "0.0.0.0:4318"
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 30
+
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+  # Log collector (DaemonSet for node-level log collection)
+  log:
+    enabled: true
+    image:
+      repository: slo-scout/log-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    # FluentBit HTTP endpoint
+    config:
+      httpPort: 8888
+      logPath: "/var/log/pods"
+
+    env:
+      - name: KAFKA_BOOTSTRAP_SERVERS
+        valueFrom:
+          configMapKeyRef:
+            name: slo-scout-config
+            key: KAFKA_BOOTSTRAP_SERVERS
+      - name: KAFKA_TOPIC
+        value: "raw-telemetry"
+
+    # DaemonSet configuration
+    hostPath:
+      enabled: true
+      path: "/var/log/pods"
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 30
+
+# =============================================================================
+# STREAMING JOBS (Apache Flink)
+# =============================================================================
+
+flink:
+  # Flink JobManager
+  jobmanager:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: slo-scout/flink-jobmanager
+      tag: 1.18.0
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+    service:
+      type: ClusterIP
+      rpcPort: 6123
+      blobPort: 6124
+      queryPort: 6125
+      uiPort: 8081
+
+    config:
+      jobManagerHeap: "1024m"
+      taskSlots: 4
+
+  # Flink TaskManager
+  taskmanager:
+    enabled: true
+    replicaCount: 3
+    image:
+      repository: slo-scout/flink-taskmanager
+      tag: 1.18.0
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+    config:
+      taskManagerHeap: "2048m"
+      taskSlots: 4
+      numberOfTaskSlots: 4
+
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+  # Fingerprinting Job
+  jobs:
+    fingerprinting:
+      enabled: true
+      image:
+        repository: slo-scout/fingerprinting-job
+        tag: latest
+        pullPolicy: IfNotPresent
+
+      config:
+        parallelism: 10
+        checkpointInterval: "300000"  # 5 minutes
+        minPauseBetweenCheckpoints: "60000"  # 1 minute
+        checkpointTimeout: "600000"  # 10 minutes
+        maxConcurrentCheckpoints: 1
+        stateBackend: "rocksdb"
+
+      env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        - name: SOURCE_TOPIC
+          value: "raw-telemetry"
+        - name: SINK_TOPIC
+          value: "capsule-events"
+        - name: DLQ_TOPIC
+          value: "raw-telemetry-dlq"
+
+    # Embedding Pipeline Job
+    embedding:
+      enabled: true
+      image:
+        repository: slo-scout/embedding-pipeline-job
+        tag: latest
+        pullPolicy: IfNotPresent
+
+      config:
+        parallelism: 5
+        checkpointInterval: "300000"
+        batchSize: 100
+
+      env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        - name: SOURCE_TOPIC
+          value: "capsule-events"
+        - name: SINK_TOPIC
+          value: "capsule-embeddings"
+        - name: EMBEDDING_SERVICE_URL
+          value: "http://slo-scout-backend:8000/api/v1/embeddings"
+
+# =============================================================================
+# BACKEND (Python FastAPI)
+# =============================================================================
+
+backend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: slo-scout/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  # Backend configuration
+  config:
+    workers: 4
+    logLevel: "info"
+    corsOrigins: "*"
+    jwtSecretKey: ""  # Override in secrets
+
+  # Database connections
+  database:
+    host: "timescaledb-postgresql"
+    port: 5432
+    name: "slo_scout"
+    user: "slo_scout"
+    # Password from secret
+    passwordSecret:
+      name: "slo-scout-db-credentials"
+      key: "password"
+
+  # S3/MinIO configuration
+  storage:
+    endpoint: "http://minio:9000"
+    bucket: "raw-telemetry-blobs"
+    accessKeySecret:
+      name: "slo-scout-minio-credentials"
+      key: "accessKey"
+    secretKeySecret:
+      name: "slo-scout-minio-credentials"
+      key: "secretKey"
+
+  # Milvus vector DB
+  vectordb:
+    host: "milvus"
+    port: 19530
+    collectionName: "capsules"
+
+  # LLM configuration
+  llm:
+    provider: "local"  # Options: local, openai
+    endpoint: "http://llm-service:8000/v1"
+    model: "all-MiniLM-L6-v2"
+    # API key from secret if using OpenAI
+    apiKeySecret:
+      name: "slo-scout-llm-credentials"
+      key: "apiKey"
+
+  env:
+    - name: KAFKA_BOOTSTRAP_SERVERS
+      valueFrom:
+        configMapKeyRef:
+          name: slo-scout-config
+          key: KAFKA_BOOTSTRAP_SERVERS
+    - name: DATABASE_URL
+      value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+    - name: S3_ENDPOINT
+      value: "http://minio:9000"
+    - name: MILVUS_HOST
+      value: "milvus"
+    - name: MILVUS_PORT
+      value: "19530"
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    hosts:
+      - host: api.slo-scout.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: slo-scout-api-tls
+        hosts:
+          - api.slo-scout.example.com
+
+# =============================================================================
+# INFRASTRUCTURE DEPENDENCIES
+# =============================================================================
+
+# Kafka configuration (using Bitnami chart)
+kafka:
+  enabled: true
+  replicaCount: 3
+
+  persistence:
+    enabled: true
+    size: 100Gi
+
+  # Kraft mode (no Zookeeper)
+  kraft:
+    enabled: true
+
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    controller:
+      protocol: PLAINTEXT
+    interbroker:
+      protocol: PLAINTEXT
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  logRetentionHours: 168  # 7 days
+  logRetentionBytes: 1073741824  # 1GB per partition
+
+  # Auto-create topics configuration
+  autoCreateTopicsEnable: false
+
+  metrics:
+    kafka:
+      enabled: true
+    jmx:
+      enabled: true
+
+# TimescaleDB (PostgreSQL with TimescaleDB extension)
+timescaledb:
+  enabled: true
+  auth:
+    username: slo_scout
+    password: ""  # Set in secrets
+    database: slo_scout
+
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+    # TimescaleDB-specific configuration
+    extendedConfiguration: |
+      shared_preload_libraries = 'timescaledb'
+      max_connections = 200
+      shared_buffers = 512MB
+      effective_cache_size = 2GB
+      maintenance_work_mem = 256MB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 16MB
+      default_statistics_target = 100
+      random_page_cost = 1.1
+      effective_io_concurrency = 200
+      work_mem = 10MB
+      min_wal_size = 1GB
+      max_wal_size = 4GB
+
+  # Read replicas for queries
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "1000m"
+
+# MinIO (S3-compatible object storage)
+minio:
+  enabled: true
+  mode: distributed
+  replicas: 4
+
+  persistence:
+    enabled: true
+    size: 500Gi
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+  # Default buckets
+  buckets:
+    - name: raw-telemetry-blobs
+      policy: none
+      purge: false
+    - name: capsule-samples
+      policy: none
+      purge: false
+
+  # Lifecycle policies (defined in bucket configuration)
+  defaultBuckets: "raw-telemetry-blobs,capsule-samples"
+
+# Milvus (Vector database)
+milvus:
+  enabled: true
+  cluster:
+    enabled: true
+
+  # Standalone mode for dev/staging
+  standalone:
+    enabled: false
+
+  # Resource configuration
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+
+  persistence:
+    enabled: true
+    size: 200Gi
+
+# Prometheus (Metrics storage and querying)
+prometheus:
+  enabled: true
+
+  server:
+    enabled: true
+    persistentVolume:
+      enabled: true
+      size: 100Gi
+
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+    retention: "30d"
+
+    # Remote write to long-term storage (optional)
+    remoteWrite: []
+
+    # Scrape configurations
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+
+  # AlertManager
+  alertmanager:
+    enabled: true
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+
+    config:
+      global:
+        resolve_timeout: 5m
+      route:
+        group_by: ['alertname', 'cluster', 'service']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 12h
+        receiver: 'default'
+      receivers:
+        - name: 'default'
+          # Configure webhook, email, or slack
+
+# Grafana (Dashboards and visualization)
+grafana:
+  enabled: true
+  replicas: 2
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Admin credentials
+  adminUser: admin
+  adminPassword: ""  # Set in secrets
+
+  # Datasources
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server:80
+          access: proxy
+          isDefault: true
+        - name: TimescaleDB
+          type: postgres
+          url: timescaledb-postgresql:5432
+          database: slo_scout
+          user: slo_scout
+          secureJsonData:
+            password: ${DB_PASSWORD}
+
+  # Dashboard providers
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'slo-scout'
+          orgId: 1
+          folder: 'SLO Scout'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/slo-scout
+
+  # Ingress
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.slo-scout.example.com
+    tls:
+      - secretName: slo-scout-grafana-tls
+        hosts:
+          - grafana.slo-scout.example.com
+
+# =============================================================================
+# CONFIGMAPS AND SECRETS
+# =============================================================================
+
+configMaps:
+  slo-scout-config:
+    KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    ENVIRONMENT: "production"
+    LOG_LEVEL: "info"
+
+# Secret management (use external-secrets or sealed-secrets in production)
+secrets:
+  # Database credentials
+  slo-scout-db-credentials:
+    password: ""  # Override with --set or external-secrets
+
+  # MinIO credentials
+  slo-scout-minio-credentials:
+    accessKey: "minioadmin"
+    secretKey: ""  # Override
+
+  # LLM API credentials (if using OpenAI)
+  slo-scout-llm-credentials:
+    apiKey: ""  # Override
+
+  # JWT secret for API authentication
+  slo-scout-jwt-secret:
+    secretKey: ""  # Override
+
+# =============================================================================
+# RBAC AND SERVICE ACCOUNTS
+# =============================================================================
+
+serviceAccount:
+  create: true
+  name: "slo-scout"
+  annotations: {}
+
+rbac:
+  create: true
+  # Cluster-wide permissions for chaos testing
+  clusterRole: true
+
+# =============================================================================
+# MONITORING AND OBSERVABILITY
+# =============================================================================
+
+# ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus
+
+# PodMonitor for Flink jobs
+podMonitor:
+  enabled: true
+  interval: 30s
+
+# =============================================================================
+# NETWORK POLICIES
+# =============================================================================
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # Allow ingress from ingress controller
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+
+  # Allow egress to Kafka, DB, storage
+  egress:
+    - to:
+      - podSelector:
+          matchLabels:
+            app: kafka
+    - to:
+      - podSelector:
+          matchLabels:
+            app: timescaledb
+    - to:
+      - podSelector:
+          matchLabels:
+            app: minio
+
+# =============================================================================
+# POD DISRUPTION BUDGETS
+# =============================================================================
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# =============================================================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# =============================================================================
+
+# Development environment overrides
+dev:
+  kafka:
+    replicaCount: 1
+  timescaledb:
+    readReplicas:
+      replicaCount: 0
+  minio:
+    mode: standalone
+    replicas: 1
+  backend:
+    replicaCount: 1
+    autoscaling:
+      enabled: false
+  collectors:
+    prometheus:
+      replicaCount: 1
+    otlp:
+      replicaCount: 1
+
+# Staging environment overrides
+staging:
+  kafka:
+    replicaCount: 2
+  backend:
+    replicaCount: 2
+  backend:
+    ingress:
+      hosts:
+        - host: api-staging.slo-scout.example.com
+
+# Production environment (default values above)
+production: {}

@@ -1,0 +1,402 @@
+# SLO-Scout Self-Observability Alert Rules (T145)
+#
+# Per research.md appendix B.1: Alert rules for SLO-Scout's own operations
+# - IngestLagHigh: Ingest lag exceeding SLO threshold
+# - EmbeddingQueueBacklog: Embedding queue backing up
+# - VectorQueryLatencyHigh: Vector search latency degradation
+#
+# Additional alerts for comprehensive observability
+
+groups:
+  - name: slo_scout_slo_alerts
+    interval: 30s
+    rules:
+      # === Critical SLO Breach Alerts ===
+
+      - alert: SLOScoutIngestLagHigh
+        expr: |
+          slo_scout:ingest_lag:p99 > 60
+        for: 5m
+        labels:
+          severity: critical
+          component: ingest_pipeline
+          slo_type: ingest_freshness
+        annotations:
+          summary: "SLO-Scout ingest lag exceeding SLO threshold"
+          description: |
+            Ingest lag P99 is {{ $value | humanizeDuration }} for service {{ $labels.service }},
+            {{ $labels.telemetry_type }} in {{ $labels.environment }}.
+            SLO target is < 60s. This indicates telemetry processing delays.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/ingest-lag-high"
+          dashboard_url: "https://grafana.slo-scout.io/d/slo-scout-self-observability"
+
+      - alert: SLOScoutIngestFreshnessSLOBreach
+        expr: |
+          slo_scout:ingest_freshness:slo_status == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: ingest_pipeline
+          slo_type: ingest_freshness
+        annotations:
+          summary: "SLO-Scout failing ingest freshness SLO (99% < 60s)"
+          description: |
+            Ingest freshness SLO is breaching. Current performance: {{ $value | humanizePercentage }}% < 60s.
+            Target: 99% of events ingested within 60s.
+            Service: {{ $labels.service }}, Environment: {{ $labels.environment }}
+          runbook_url: "https://runbooks.slo-scout.io/alerts/ingest-slo-breach"
+          impact: "HIGH - Telemetry delays affecting SLI recommendation quality"
+
+      - alert: SLOScoutVectorQueryLatencyHigh
+        expr: |
+          slo_scout:vector_query:p95_latency > 2
+        for: 5m
+        labels:
+          severity: critical
+          component: vector_search
+          slo_type: query_latency
+        annotations:
+          summary: "SLO-Scout vector query latency exceeding SLO threshold"
+          description: |
+            Vector query P95 latency is {{ $value | humanizeDuration }} for operation {{ $labels.operation }}
+            on collection {{ $labels.collection }}.
+            SLO target is < 2s. This impacts analysis job performance.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/vector-query-latency-high"
+          dashboard_url: "https://grafana.slo-scout.io/d/slo-scout-self-observability"
+
+      - alert: SLOScoutVectorQuerySLOBreach
+        expr: |
+          slo_scout:vector_query:slo_status == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: vector_search
+          slo_type: query_latency
+        annotations:
+          summary: "SLO-Scout failing vector query latency SLO (95% < 2s)"
+          description: |
+            Vector query latency SLO is breaching. Current performance: {{ $value | humanizePercentage }}% < 2s.
+            Target: 95% of queries complete within 2s.
+            Operation: {{ $labels.operation }}, Collection: {{ $labels.collection }}
+          runbook_url: "https://runbooks.slo-scout.io/alerts/vector-query-slo-breach"
+          impact: "HIGH - RAG retrieval delays affecting recommendation accuracy"
+
+      - alert: SLOScoutAnalysisDurationHigh
+        expr: |
+          slo_scout:analysis:p95_duration > 300
+        for: 5m
+        labels:
+          severity: critical
+          component: analysis_engine
+          slo_type: summarization_duration
+        annotations:
+          summary: "SLO-Scout analysis job duration exceeding SLO threshold"
+          description: |
+            Analysis job P95 duration is {{ $value | humanizeDuration }} for service {{ $labels.service }}.
+            SLO target is < 5m (300s). This delays SLI recommendations.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/analysis-duration-high"
+          dashboard_url: "https://grafana.slo-scout.io/d/slo-scout-self-observability"
+
+      - alert: SLOScoutAnalysisSLOBreach
+        expr: |
+          slo_scout:analysis:slo_status == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: analysis_engine
+          slo_type: summarization_duration
+        annotations:
+          summary: "SLO-Scout failing summarization duration SLO (95% < 5m)"
+          description: |
+            Analysis duration SLO is breaching. Current performance: {{ $value | humanizePercentage }}% < 5m.
+            Target: 95% of analysis jobs complete within 5 minutes.
+            Service: {{ $labels.service }}
+          runbook_url: "https://runbooks.slo-scout.io/alerts/analysis-slo-breach"
+          impact: "HIGH - Analysis job delays affecting user experience"
+
+      # === Component Health Alerts ===
+
+      - alert: SLOScoutEmbeddingQueueBacklog
+        expr: |
+          slo_scout_embedding_queue_length > 1000
+        for: 10m
+        labels:
+          severity: major
+          component: embedding_pipeline
+        annotations:
+          summary: "SLO-Scout embedding queue backing up"
+          description: |
+            Embedding queue length is {{ $value }} for model {{ $labels.embedding_model }}.
+            Threshold: 1000 capsules. Queue is not draining fast enough.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/embedding-queue-backlog"
+          dashboard_url: "https://grafana.slo-scout.io/d/slo-scout-self-observability"
+          mitigation: "Scale up embedding workers or check for embedding service errors"
+
+      - alert: SLOScoutEmbeddingQueueCritical
+        expr: |
+          slo_scout_embedding_queue_length > 5000
+        for: 5m
+        labels:
+          severity: critical
+          component: embedding_pipeline
+        annotations:
+          summary: "SLO-Scout embedding queue critically backed up"
+          description: |
+            Embedding queue length is {{ $value }} for model {{ $labels.embedding_model }}.
+            Critical threshold: 5000 capsules. Risk of data loss or significant delays.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/embedding-queue-critical"
+          impact: "CRITICAL - RAG search will be incomplete, recommendations degraded"
+
+      - alert: SLOScoutLLMLatencyHigh
+        expr: |
+          slo_scout:llm:p95_duration > 30
+        for: 5m
+        labels:
+          severity: major
+          component: llm_integration
+        annotations:
+          summary: "SLO-Scout LLM request latency high"
+          description: |
+            LLM request P95 latency is {{ $value | humanizeDuration }} for model {{ $labels.model }},
+            operation {{ $labels.operation }}.
+            Threshold: 30s. LLM API may be degraded.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/llm-latency-high"
+          mitigation: "Check LLM API status, consider failover to cached responses"
+
+      - alert: SLOScoutLLMErrorRateHigh
+        expr: |
+          (
+            sum by (model, operation) (
+              rate(slo_scout_llm_request_duration_seconds_count{status="error"}[5m])
+            )
+            /
+            sum by (model, operation) (
+              rate(slo_scout_llm_request_duration_seconds_count[5m])
+            )
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: llm_integration
+        annotations:
+          summary: "SLO-Scout LLM error rate high"
+          description: |
+            LLM error rate is {{ $value | humanizePercentage }}% for model {{ $labels.model }},
+            operation {{ $labels.operation }}.
+            Threshold: 10%. LLM integration may be failing.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/llm-error-rate-high"
+          impact: "HIGH - SLI recommendations will fail or be degraded"
+
+      - alert: SLOScoutDailyLLMSpendHigh
+        expr: |
+          slo_scout_daily_llm_spend_usd > 100
+        for: 15m
+        labels:
+          severity: major
+          component: llm_integration
+          cost_alert: "true"
+        annotations:
+          summary: "SLO-Scout daily LLM spend exceeding budget"
+          description: |
+            Daily LLM spend is ${{ $value | humanize }} for model {{ $labels.model }}.
+            Budget threshold: $100/day. Cost optimization may be needed.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/llm-spend-high"
+          mitigation: "Review LLM call patterns, enable caching, consider model downgrade"
+
+      # === Error Budget Burn Rate Alerts ===
+
+      - alert: SLOScoutIngestErrorBudgetBurnRateFast
+        expr: |
+          (
+            (1 - slo_scout:ingest_freshness:sli_1h / 100) > (14.4 * (1 - 0.99))
+            and
+            (1 - slo_scout:ingest_freshness:sli_6h / 100) > (14.4 * (1 - 0.99))
+          )
+        for: 2m
+        labels:
+          severity: critical
+          component: ingest_pipeline
+          alert_type: error_budget_burn
+        annotations:
+          summary: "SLO-Scout ingest freshness error budget burning too fast"
+          description: |
+            Ingest freshness error budget is burning at 14.4x the acceptable rate.
+            At this rate, the entire 30-day budget will be exhausted in 2 days.
+            1h SLI: {{ $value | humanizePercentage }}%, 6h SLI: {{ $value | humanizePercentage }}%
+          runbook_url: "https://runbooks.slo-scout.io/alerts/error-budget-burn-fast"
+          impact: "CRITICAL - Immediate investigation required"
+
+      - alert: SLOScoutVectorQueryErrorBudgetBurnRateFast
+        expr: |
+          (
+            (1 - slo_scout:vector_query:latency_sli / 100) > (6 * (1 - 0.95))
+            and
+            rate(slo_scout_vector_query_latency_seconds_count[1h]) > 0
+          )
+        for: 2m
+        labels:
+          severity: critical
+          component: vector_search
+          alert_type: error_budget_burn
+        annotations:
+          summary: "SLO-Scout vector query error budget burning too fast"
+          description: |
+            Vector query latency error budget is burning at 6x the acceptable rate.
+            Operation: {{ $labels.operation }}, Collection: {{ $labels.collection }}
+          runbook_url: "https://runbooks.slo-scout.io/alerts/vector-query-error-budget-burn"
+          impact: "CRITICAL - Query performance degraded significantly"
+
+      # === Infrastructure Health Alerts ===
+
+      - alert: SLOScoutKafkaConsumerLagHigh
+        expr: |
+          slo_scout_kafka_consumer_lag > 10000
+        for: 5m
+        labels:
+          severity: major
+          component: kafka_consumer
+        annotations:
+          summary: "SLO-Scout Kafka consumer lag high"
+          description: |
+            Kafka consumer lag is {{ $value }} messages for topic {{ $labels.topic }},
+            consumer group {{ $labels.consumer_group }}, partition {{ $labels.partition }}.
+            Threshold: 10000 messages. Consumer may be slow or stuck.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/kafka-consumer-lag-high"
+          mitigation: "Scale consumers, check for errors, verify Kafka broker health"
+
+      - alert: SLOScoutKafkaConsumerStalled
+        expr: |
+          rate(slo_scout_kafka_messages_consumed_total[5m]) == 0
+          and
+          slo_scout_kafka_consumer_lag > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: kafka_consumer
+        annotations:
+          summary: "SLO-Scout Kafka consumer stalled"
+          description: |
+            Kafka consumer is not processing messages for topic {{ $labels.topic }},
+            consumer group {{ $labels.consumer_group }}.
+            Lag: {{ $value }} messages. Consumer may be crashed or deadlocked.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/kafka-consumer-stalled"
+          impact: "CRITICAL - Telemetry processing halted"
+
+      - alert: SLOScoutDatabaseConnectionPoolExhausted
+        expr: |
+          slo_scout_db_connection_pool_size{state="active"}
+          /
+          (slo_scout_db_connection_pool_size{state="active"} + slo_scout_db_connection_pool_size{state="idle"})
+          > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "SLO-Scout database connection pool exhausted"
+          description: |
+            Database connection pool utilization is {{ $value | humanizePercentage }}%
+            for database {{ $labels.database }}.
+            Threshold: 90%. Risk of connection exhaustion.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/db-connection-pool-exhausted"
+          mitigation: "Increase pool size, check for connection leaks, optimize queries"
+
+      - alert: SLOScoutDatabaseQueryLatencyHigh
+        expr: |
+          slo_scout:db:p95_latency > 1
+        for: 5m
+        labels:
+          severity: major
+          component: database
+        annotations:
+          summary: "SLO-Scout database query latency high"
+          description: |
+            Database query P95 latency is {{ $value | humanizeDuration }}
+            for database {{ $labels.database }}, operation {{ $labels.operation }}, table {{ $labels.table }}.
+            Threshold: 1s. Database may be degraded.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/db-query-latency-high"
+          mitigation: "Check database load, optimize queries, add indexes"
+
+      # === API Health Alerts ===
+
+      - alert: SLOScoutAPILatencyHigh
+        expr: |
+          slo_scout:api:p95_latency > 5
+        for: 5m
+        labels:
+          severity: major
+          component: api
+        annotations:
+          summary: "SLO-Scout API latency high"
+          description: |
+            API P95 latency is {{ $value | humanizeDuration }}
+            for {{ $labels.method }} {{ $labels.endpoint }}.
+            Threshold: 5s. User-facing performance degraded.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/api-latency-high"
+          dashboard_url: "https://grafana.slo-scout.io/d/slo-scout-self-observability"
+
+      - alert: SLOScoutAPIErrorRateHigh
+        expr: |
+          slo_scout:api:success_rate < 95
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "SLO-Scout API error rate high"
+          description: |
+            API success rate is {{ $value | humanizePercentage }}%
+            for {{ $labels.method }} {{ $labels.endpoint }}.
+            Threshold: 95%. API reliability degraded.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/api-error-rate-high"
+          impact: "HIGH - User-facing API failures"
+
+      # === Data Quality Alerts ===
+
+      - alert: SLOScoutIngestEventFailureRateHigh
+        expr: |
+          (
+            sum by (service, environment, telemetry_type) (
+              rate(slo_scout_ingest_events_total{status="error"}[5m])
+            )
+            /
+            sum by (service, environment, telemetry_type) (
+              rate(slo_scout_ingest_events_total[5m])
+            )
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: major
+          component: ingest_pipeline
+        annotations:
+          summary: "SLO-Scout ingest event failure rate high"
+          description: |
+            Ingest event failure rate is {{ $value | humanizePercentage }}%
+            for service {{ $labels.service }}, {{ $labels.telemetry_type }} in {{ $labels.environment }}.
+            Threshold: 5%. Telemetry processing errors detected.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/ingest-failure-rate-high"
+          mitigation: "Check collector logs, validate telemetry format, verify connectivity"
+
+      - alert: SLOScoutArtifactGenerationFailureRateHigh
+        expr: |
+          (
+            sum by (artifact_type) (
+              rate(slo_scout_artifact_generation_total{status="error"}[5m])
+            )
+            /
+            sum by (artifact_type) (
+              rate(slo_scout_artifact_generation_total[5m])
+            )
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: major
+          component: artifact_generator
+        annotations:
+          summary: "SLO-Scout artifact generation failure rate high"
+          description: |
+            Artifact generation failure rate is {{ $value | humanizePercentage }}%
+            for artifact type {{ $labels.artifact_type }}.
+            Threshold: 10%. Artifact validation or generation errors.
+          runbook_url: "https://runbooks.slo-scout.io/alerts/artifact-generation-failure-high"
+          mitigation: "Check validation logs, verify promtool/grafana schemas, review LLM outputs"

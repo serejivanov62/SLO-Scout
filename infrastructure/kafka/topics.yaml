@@ -1,0 +1,58 @@
+# Kafka Topics Configuration for SLO-Scout
+# Partitioning strategy per streaming-capsule.yaml
+
+topics:
+  - name: raw-telemetry
+    partitions: 10
+    replication-factor: 3
+    config:
+      retention.ms: 604800000  # 7 days
+      compression.type: snappy
+      min.insync.replicas: 2
+      cleanup.policy: delete
+    description: "Raw telemetry events from collectors (metrics, traces, logs)"
+
+  - name: capsule-events
+    partitions: 10
+    replication-factor: 3
+    config:
+      retention.ms: 7776000000  # 90 days
+      compression.type: snappy
+      min.insync.replicas: 2
+      cleanup.policy: delete
+    description: "Fingerprinted capsules with aggregated counts and samples"
+
+  - name: capsule-embeddings
+    partitions: 10
+    replication-factor: 3
+    config:
+      retention.ms: 7776000000  # 90 days
+      compression.type: snappy
+      min.insync.replicas: 2
+      cleanup.policy: delete
+    description: "Capsule embeddings for vector search"
+
+  - name: raw-telemetry-dlq
+    partitions: 3
+    replication-factor: 3
+    config:
+      retention.ms: 2592000000  # 30 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+    description: "Dead letter queue for malformed telemetry events"
+
+  - name: analysis-jobs
+    partitions: 5
+    replication-factor: 3
+    config:
+      retention.ms: 2592000000  # 30 days
+      compression.type: snappy
+      min.insync.replicas: 2
+      cleanup.policy: delete
+    description: "Analysis job requests and status updates"
+
+# Scaling tiers per FR-033
+# Starter: 1 partition per topic
+# Professional: 3 partitions per topic
+# Enterprise: 10+ partitions per topic (as configured above)

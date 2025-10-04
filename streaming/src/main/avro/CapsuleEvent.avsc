@@ -1,0 +1,73 @@
+{
+  "type": "record",
+  "name": "CapsuleEvent",
+  "namespace": "com.sloscout.schema",
+  "doc": "Fingerprinted log/trace pattern with aggregated statistics",
+  "fields": [
+    {
+      "name": "fingerprint_hash",
+      "type": "string",
+      "doc": "SHA256 hash of normalized template"
+    },
+    {
+      "name": "template",
+      "type": "string",
+      "doc": "Normalized pattern with masked variables (e.g., User {USER_ID} logged in from {IP})"
+    },
+    {
+      "name": "service_name",
+      "type": "string",
+      "doc": "Originating service name"
+    },
+    {
+      "name": "severity",
+      "type": [
+        "null",
+        {
+          "type": "enum",
+          "name": "CapsuleSeverity",
+          "symbols": ["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+        }
+      ],
+      "default": null,
+      "doc": "Primary severity level"
+    },
+    {
+      "name": "count",
+      "type": "long",
+      "doc": "Occurrence count in aggregation window"
+    },
+    {
+      "name": "sample_event_ids",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "doc": "Reservoir sample of event IDs (max 10)"
+    },
+    {
+      "name": "time_bucket",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Aggregation window start time (tumbling 1h windows)"
+    },
+    {
+      "name": "first_seen_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "First occurrence timestamp in window"
+    },
+    {
+      "name": "last_seen_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Most recent occurrence timestamp in window"
+    }
+  ]
+}

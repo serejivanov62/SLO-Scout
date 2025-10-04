@@ -1,0 +1,90 @@
+{
+  "type": "record",
+  "name": "TelemetryEvent",
+  "namespace": "com.sloscout.schema",
+  "doc": "Raw telemetry event from collectors (logs, traces, metrics)",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier (UUID)"
+    },
+    {
+      "name": "service_name",
+      "type": "string",
+      "doc": "Service name (e.g., payments-api)"
+    },
+    {
+      "name": "environment",
+      "type": {
+        "type": "enum",
+        "name": "Environment",
+        "symbols": ["prod", "staging", "dev"]
+      },
+      "doc": "Deployment environment"
+    },
+    {
+      "name": "event_type",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["log", "trace", "metric"]
+      },
+      "doc": "Type of telemetry event"
+    },
+    {
+      "name": "timestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Event timestamp in milliseconds since epoch"
+    },
+    {
+      "name": "severity",
+      "type": [
+        "null",
+        {
+          "type": "enum",
+          "name": "Severity",
+          "symbols": ["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+        }
+      ],
+      "default": null,
+      "doc": "Log severity level (null for non-log events)"
+    },
+    {
+      "name": "message",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Log message or trace name"
+    },
+    {
+      "name": "trace_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Distributed trace ID (W3C format)"
+    },
+    {
+      "name": "span_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Span ID within trace"
+    },
+    {
+      "name": "attributes",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Key-value attributes (labels, tags, metadata)"
+    },
+    {
+      "name": "raw_blob_s3_key",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "S3 key for full event payload if oversized"
+    }
+  ]
+}

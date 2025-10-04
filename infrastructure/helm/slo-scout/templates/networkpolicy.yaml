@@ -1,0 +1,122 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-backend
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes:
+    {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
+  ingress:
+  # Allow from ingress controller
+  {{- with .Values.networkPolicy.ingress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  # Allow from within namespace
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # Allow to Kafka
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow to TimescaleDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to MinIO
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: minio
+    ports:
+    - protocol: TCP
+      port: 9000
+  # Allow to Milvus
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: milvus
+    ports:
+    - protocol: TCP
+      port: 19530
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS for external APIs (GitHub, OpenAI, etc)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-collectors
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
+  ingress:
+  # OTLP collector accepts external traffic
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  egress:
+  # Allow to Kafka
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow to Prometheus
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 9090
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+{{- end }}

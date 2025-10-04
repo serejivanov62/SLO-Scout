@@ -1,0 +1,120 @@
+{{- if .Values.collectors.otlp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-otlp-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otlp-collector
+spec:
+  replicas: {{ .Values.collectors.otlp.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: otlp-collector
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: otlp-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: otlp-collector
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.collectors.otlp.image.repository }}:{{ .Values.collectors.otlp.image.tag }}"
+        imagePullPolicy: {{ .Values.collectors.otlp.image.pullPolicy }}
+        ports:
+        - name: otlp-grpc
+          containerPort: 4317
+          protocol: TCP
+        - name: otlp-http
+          containerPort: 4318
+          protocol: TCP
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        {{- with .Values.collectors.otlp.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.collectors.otlp.resources | nindent 10 }}
+        {{- with .Values.collectors.otlp.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.collectors.otlp.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-otlp-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otlp-collector
+spec:
+  type: {{ .Values.collectors.otlp.service.type }}
+  ports:
+  - port: {{ .Values.collectors.otlp.service.grpcPort }}
+    targetPort: otlp-grpc
+    protocol: TCP
+    name: otlp-grpc
+  - port: {{ .Values.collectors.otlp.service.httpPort }}
+    targetPort: otlp-http
+    protocol: TCP
+    name: otlp-http
+  - port: 8080
+    targetPort: health
+    protocol: TCP
+    name: health
+  selector:
+    {{- include "slo-scout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: otlp-collector
+{{- if .Values.collectors.otlp.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-otlp-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otlp-collector
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "slo-scout.fullname" . }}-otlp-collector
+  minReplicas: {{ .Values.collectors.otlp.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.collectors.otlp.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.collectors.otlp.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,199 @@
+{{- if .Values.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-backend
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      # Database migration init container
+      - name: db-migrate
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Running database migrations..."
+          python -m alembic upgrade head
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.passwordSecret.name }}
+              key: {{ .Values.backend.database.passwordSecret.key }}
+        - name: DATABASE_URL
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+      containers:
+      - name: backend
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        # Database configuration
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.database.passwordSecret.name }}
+              key: {{ .Values.backend.database.passwordSecret.key }}
+        - name: DATABASE_URL
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+        # S3/MinIO configuration
+        - name: S3_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: S3_ENDPOINT
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.storage.accessKeySecret.name }}
+              key: {{ .Values.backend.storage.accessKeySecret.key }}
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.storage.secretKeySecret.name }}
+              key: {{ .Values.backend.storage.secretKeySecret.key }}
+        - name: S3_BUCKET_RAW
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: S3_BUCKET_RAW
+        - name: S3_BUCKET_CAPSULES
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: S3_BUCKET_CAPSULES
+        # Milvus configuration
+        - name: MILVUS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: MILVUS_HOST
+        - name: MILVUS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: MILVUS_PORT
+        - name: MILVUS_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: MILVUS_COLLECTION
+        # Backend-specific configuration
+        - name: WORKERS
+          value: {{ .Values.backend.config.workers | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.backend.config.logLevel | quote }}
+        - name: CORS_ORIGINS
+          value: {{ .Values.backend.config.corsOrigins | quote }}
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: slo-scout-jwt-secret
+              key: secretKey
+        # LLM configuration
+        - name: LLM_PROVIDER
+          value: {{ .Values.backend.llm.provider | quote }}
+        - name: LLM_ENDPOINT
+          value: {{ .Values.backend.llm.endpoint | quote }}
+        - name: LLM_MODEL
+          value: {{ .Values.backend.llm.model | quote }}
+        {{- if eq .Values.backend.llm.provider "openai" }}
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backend.llm.apiKeySecret.name }}
+              key: {{ .Values.backend.llm.apiKeySecret.key }}
+        {{- end }}
+        {{- with .Values.backend.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+        {{- with .Values.backend.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.backend.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+{{- end }}

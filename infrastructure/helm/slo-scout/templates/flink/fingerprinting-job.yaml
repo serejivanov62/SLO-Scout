@@ -1,0 +1,51 @@
+{{- if .Values.flink.jobs.fingerprinting.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-fingerprinting-job
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: fingerprinting-job
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: fingerprinting-job
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      restartPolicy: OnFailure
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: fingerprinting-job
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.flink.jobs.fingerprinting.image.repository }}:{{ .Values.flink.jobs.fingerprinting.image.tag }}"
+        imagePullPolicy: {{ .Values.flink.jobs.fingerprinting.image.pullPolicy }}
+        args:
+        - run
+        - -d
+        - -p
+        - "{{ .Values.flink.jobs.fingerprinting.config.parallelism }}"
+        - /opt/flink/jobs/fingerprinting-job.jar
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: FLINK_JOBMANAGER_ADDRESS
+          value: {{ include "slo-scout.fullname" . }}-flink-jobmanager:6123
+        - name: CHECKPOINT_INTERVAL
+          value: {{ .Values.flink.jobs.fingerprinting.config.checkpointInterval | quote }}
+        - name: STATE_BACKEND
+          value: {{ .Values.flink.jobs.fingerprinting.config.stateBackend | quote }}
+        {{- with .Values.flink.jobs.fingerprinting.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 9999
+          allowPrivilegeEscalation: false
+{{- end }}

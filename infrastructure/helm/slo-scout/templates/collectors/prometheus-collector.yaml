@@ -1,0 +1,118 @@
+{{- if .Values.collectors.prometheus.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-prometheus-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-collector
+spec:
+  replicas: {{ .Values.collectors.prometheus.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: prometheus-collector
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: prometheus-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: prometheus-collector
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.collectors.prometheus.image.repository }}:{{ .Values.collectors.prometheus.image.tag }}"
+        imagePullPolicy: {{ .Values.collectors.prometheus.image.pullPolicy }}
+        ports:
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: PROMETHEUS_URL
+          value: {{ .Values.collectors.prometheus.config.prometheusUrl | quote }}
+        - name: SCRAPE_INTERVAL
+          value: {{ .Values.collectors.prometheus.config.scrapeInterval | quote }}
+        - name: QUERY_TIMEOUT
+          value: {{ .Values.collectors.prometheus.config.queryTimeout | quote }}
+        {{- with .Values.collectors.prometheus.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.collectors.prometheus.resources | nindent 10 }}
+        {{- with .Values.collectors.prometheus.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.collectors.prometheus.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-prometheus-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-collector
+spec:
+  type: {{ .Values.collectors.prometheus.service.type }}
+  ports:
+  - port: {{ .Values.collectors.prometheus.service.port }}
+    targetPort: health
+    protocol: TCP
+    name: health
+  selector:
+    {{- include "slo-scout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-collector
+{{- if .Values.collectors.prometheus.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-prometheus-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-collector
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "slo-scout.fullname" . }}-prometheus-collector
+  minReplicas: {{ .Values.collectors.prometheus.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.collectors.prometheus.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.collectors.prometheus.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.collectors.prometheus.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

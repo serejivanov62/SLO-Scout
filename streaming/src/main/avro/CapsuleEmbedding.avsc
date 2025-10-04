@@ -1,0 +1,44 @@
+{
+  "type": "record",
+  "name": "CapsuleEmbedding",
+  "namespace": "com.sloscout.schema",
+  "doc": "Capsule with embedding vector for similarity search",
+  "fields": [
+    {
+      "name": "capsule_id",
+      "type": "string",
+      "doc": "Capsule UUID from TimescaleDB"
+    },
+    {
+      "name": "fingerprint_hash",
+      "type": "string",
+      "doc": "SHA256 hash linking to CapsuleEvent"
+    },
+    {
+      "name": "embedding_vector",
+      "type": {
+        "type": "array",
+        "items": "float"
+      },
+      "doc": "Embedding vector (384-dim for MiniLM, 1536-dim for OpenAI)"
+    },
+    {
+      "name": "embedding_model",
+      "type": "string",
+      "doc": "Model identifier (e.g., all-MiniLM-L6-v2, text-embedding-ada-002)"
+    },
+    {
+      "name": "redaction_applied",
+      "type": "boolean",
+      "doc": "PII redaction status (MUST be true per data quality contract)"
+    },
+    {
+      "name": "created_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Embedding generation timestamp"
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+# Development environment values
+# Minimal resource allocation for local testing
+
+global:
+  environment: dev
+  imageRegistry: docker.io
+
+# Collectors - minimal replicas
+collectors:
+  prometheus:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    autoscaling:
+      enabled: false
+
+  otlp:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    autoscaling:
+      enabled: false
+
+  log:
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+# Flink - minimal configuration
+flink:
+  jobmanager:
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  taskmanager:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    autoscaling:
+      enabled: false
+
+  jobs:
+    fingerprinting:
+      config:
+        parallelism: 2
+    embedding:
+      config:
+        parallelism: 1
+
+# Backend - single replica
+backend:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "125m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  autoscaling:
+    enabled: false
+
+  ingress:
+    enabled: false
+
+# Infrastructure - minimal deployment
+kafka:
+  enabled: true
+  replicaCount: 1
+  kraft:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  logRetentionHours: 24  # 1 day retention
+
+timescaledb:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+  readReplicas:
+    replicaCount: 0  # No read replicas in dev
+
+minio:
+  enabled: true
+  mode: standalone
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "125m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+milvus:
+  enabled: false  # Use pgvector in dev
+  standalone:
+    enabled: false
+
+# Use pgvector instead of Milvus for dev
+backend:
+  vectordb:
+    provider: pgvector  # Instead of Milvus
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    retention: "7d"  # 7 days retention
+  alertmanager:
+    enabled: false  # Disable in dev
+
+grafana:
+  enabled: true
+  replicas: 1
+  persistence:
+    enabled: false  # Ephemeral in dev
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  ingress:
+    enabled: false
+
+# Disable network policies in dev
+networkPolicy:
+  enabled: false
+
+# Disable ServiceMonitor in dev
+serviceMonitor:
+  enabled: false
+
+# Disable PodDisruptionBudgets in dev
+podDisruptionBudget:
+  enabled: false

@@ -1,0 +1,72 @@
+{{- if .Values.flink.taskmanager.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-flink-taskmanager
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: flink-taskmanager
+spec:
+  replicas: {{ .Values.flink.taskmanager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: flink-taskmanager
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: flink-taskmanager
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: taskmanager
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.flink.taskmanager.image.repository }}:{{ .Values.flink.taskmanager.image.tag }}"
+        imagePullPolicy: {{ .Values.flink.taskmanager.image.pullPolicy }}
+        args:
+        - taskmanager
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: JOB_MANAGER_RPC_ADDRESS
+          value: {{ include "slo-scout.fullname" . }}-flink-jobmanager
+        - name: TASK_MANAGER_HEAP_MB
+          value: {{ .Values.flink.taskmanager.config.taskManagerHeap | quote }}
+        - name: TASK_MANAGER_NUMBER_OF_TASK_SLOTS
+          value: {{ .Values.flink.taskmanager.config.numberOfTaskSlots | quote }}
+        resources:
+          {{- toYaml .Values.flink.taskmanager.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 9999
+          allowPrivilegeEscalation: false
+{{- if .Values.flink.taskmanager.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-flink-taskmanager
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: flink-taskmanager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "slo-scout.fullname" . }}-flink-taskmanager
+  minReplicas: {{ .Values.flink.taskmanager.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.flink.taskmanager.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.flink.taskmanager.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

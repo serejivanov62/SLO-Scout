@@ -1,0 +1,113 @@
+# Milvus Collection Definitions for SLO-Scout
+# HNSW index for sub-100ms similarity search per research.md
+
+collections:
+  - name: capsules
+    description: "Capsule embeddings for RAG-based SLI recommendations"
+    schema:
+      fields:
+        - name: capsule_id
+          dtype: VARCHAR
+          max_length: 36
+          is_primary: true
+          description: "UUID from TimescaleDB capsule table"
+
+        - name: fingerprint_hash
+          dtype: VARCHAR
+          max_length: 64
+          description: "SHA256 hash for linking to CapsuleEvent"
+
+        - name: service_name
+          dtype: VARCHAR
+          max_length: 255
+          description: "Originating service (for filtering)"
+
+        - name: environment
+          dtype: VARCHAR
+          max_length: 20
+          description: "prod/staging/dev (for filtering)"
+
+        - name: severity
+          dtype: VARCHAR
+          max_length: 20
+          description: "Primary severity level (for filtering)"
+
+        - name: time_bucket
+          dtype: INT64
+          description: "Timestamp in milliseconds (for time-range filtering)"
+
+        - name: embedding
+          dtype: FLOAT_VECTOR
+          dim: 384  # all-MiniLM-L6-v2 dimensions
+          description: "Embedding vector from sentence-transformers"
+
+    index:
+      field: embedding
+      index_type: HNSW  # Hierarchical Navigable Small World
+      metric_type: IP   # Inner Product (cosine similarity)
+      params:
+        M: 16             # Max connections per node
+        efConstruction: 200  # Build time search depth
+        ef: 100           # Query time search depth
+
+    # Partitioning by environment for better isolation
+    partitions:
+      - prod
+      - staging
+      - dev
+
+    # TTL for automatic cleanup (90 days per FR-030)
+    ttl: 7776000  # seconds
+
+  - name: capsules_openai
+    description: "Optional collection for OpenAI embeddings (1536-dim)"
+    schema:
+      fields:
+        - name: capsule_id
+          dtype: VARCHAR
+          max_length: 36
+          is_primary: true
+
+        - name: fingerprint_hash
+          dtype: VARCHAR
+          max_length: 64
+
+        - name: service_name
+          dtype: VARCHAR
+          max_length: 255
+
+        - name: environment
+          dtype: VARCHAR
+          max_length: 20
+
+        - name: severity
+          dtype: VARCHAR
+          max_length: 20
+
+        - name: time_bucket
+          dtype: INT64
+
+        - name: embedding
+          dtype: FLOAT_VECTOR
+          dim: 1536  # text-embedding-ada-002 dimensions
+
+    index:
+      field: embedding
+      index_type: HNSW
+      metric_type: IP
+      params:
+        M: 16
+        efConstruction: 200
+        ef: 100
+
+    partitions:
+      - prod
+      - staging
+      - dev
+
+    ttl: 7776000
+
+# Performance targets per streaming-capsule.yaml:
+# - Query latency: p95 < 100ms
+# - Throughput: 100k embeddings/min (Enterprise tier)
+# - Replication: 2x replicas for availability

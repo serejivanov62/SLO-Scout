@@ -1,0 +1,87 @@
+{{- if .Values.flink.jobmanager.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-flink-jobmanager
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: flink-jobmanager
+spec:
+  replicas: {{ .Values.flink.jobmanager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: flink-jobmanager
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: flink-jobmanager
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: jobmanager
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.flink.jobmanager.image.repository }}:{{ .Values.flink.jobmanager.image.tag }}"
+        imagePullPolicy: {{ .Values.flink.jobmanager.image.pullPolicy }}
+        args:
+        - jobmanager
+        ports:
+        - name: rpc
+          containerPort: 6123
+        - name: blob
+          containerPort: 6124
+        - name: query
+          containerPort: 6125
+        - name: ui
+          containerPort: 8081
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: JOB_MANAGER_RPC_ADDRESS
+          value: {{ include "slo-scout.fullname" . }}-flink-jobmanager
+        - name: JOB_MANAGER_HEAP_MB
+          value: {{ .Values.flink.jobmanager.config.jobManagerHeap | quote }}
+        resources:
+          {{- toYaml .Values.flink.jobmanager.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /overview
+            port: ui
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 9999
+          allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-flink-jobmanager
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: flink-jobmanager
+spec:
+  type: {{ .Values.flink.jobmanager.service.type }}
+  ports:
+  - name: rpc
+    port: {{ .Values.flink.jobmanager.service.rpcPort }}
+    targetPort: rpc
+  - name: blob
+    port: {{ .Values.flink.jobmanager.service.blobPort }}
+    targetPort: blob
+  - name: query
+    port: {{ .Values.flink.jobmanager.service.queryPort }}
+    targetPort: query
+  - name: ui
+    port: {{ .Values.flink.jobmanager.service.uiPort }}
+    targetPort: ui
+  selector:
+    {{- include "slo-scout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: flink-jobmanager
+{{- end }}

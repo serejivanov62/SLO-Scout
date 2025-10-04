@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-collector
+  namespace: slo-scout
+  labels:
+    app: prometheus-collector
+    component: collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: prometheus-collector
+  template:
+    metadata:
+      labels:
+        app: prometheus-collector
+    spec:
+      containers:
+      - name: prometheus-collector
+        image: slo-scout/prometheus-collector:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://prometheus:9090"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: slo-scout-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-collector
+  namespace: slo-scout
+spec:
+  selector:
+    app: prometheus-collector
+  ports:
+  - name: health
+    port: 8080
+    targetPort: 8080

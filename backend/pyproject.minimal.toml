@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "slo-scout-backend"
+version = "1.0.0"
+description = "SLO-Scout backend API - minimal"
+authors = ["SLO-Scout Team"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.104.0"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+pydantic = "^2.4.0"
+pydantic-settings = "^2.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

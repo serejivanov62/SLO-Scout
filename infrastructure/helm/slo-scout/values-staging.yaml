@@ -1,0 +1,146 @@
+# Staging environment values
+# Mid-tier resources for pre-production testing
+
+global:
+  environment: staging
+  imageRegistry: docker.io
+
+# Collectors - moderate replicas
+collectors:
+  prometheus:
+    replicaCount: 2
+    autoscaling:
+      enabled: false
+
+  otlp:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+
+# Flink - moderate resources
+flink:
+  taskmanager:
+    replicaCount: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+
+  jobs:
+    fingerprinting:
+      config:
+        parallelism: 5
+    embedding:
+      config:
+        parallelism: 3
+
+# Backend - moderate replicas
+backend:
+  replicaCount: 2
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    hosts:
+      - host: api-staging.slo-scout.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: slo-scout-api-staging-tls
+        hosts:
+          - api-staging.slo-scout.example.com
+
+# Infrastructure - moderate deployment
+kafka:
+  enabled: true
+  replicaCount: 2
+  persistence:
+    enabled: true
+    size: 50Gi
+  logRetentionHours: 72  # 3 days
+
+timescaledb:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  readReplicas:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 50Gi
+
+minio:
+  enabled: true
+  mode: distributed
+  replicas: 2
+  persistence:
+    enabled: true
+    size: 100Gi
+
+milvus:
+  enabled: true
+  cluster:
+    enabled: false
+  standalone:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 50Gi
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+    retention: "15d"
+
+grafana:
+  enabled: true
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana-staging.slo-scout.example.com
+    tls:
+      - secretName: slo-scout-grafana-staging-tls
+        hosts:
+          - grafana-staging.slo-scout.example.com
+
+# Enable network policies
+networkPolicy:
+  enabled: true
+
+# Enable ServiceMonitor
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus-operator
+
+# Enable PodDisruptionBudgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

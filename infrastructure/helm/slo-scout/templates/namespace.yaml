@@ -1,0 +1,9 @@
+{{- if .Values.namespaceOverride }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    name: {{ include "slo-scout.namespace" . }}
+{{- end }}

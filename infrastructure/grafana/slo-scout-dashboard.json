@@ -1,0 +1,1021 @@
+{
+  "dashboard": {
+    "title": "SLO-Scout Self-Observability Dashboard",
+    "description": "Monitoring dashboard for SLO-Scout's own performance and SLOs (FR-026)",
+    "tags": [
+      "slo-scout",
+      "self-observability",
+      "slo",
+      "platform"
+    ],
+    "timezone": "browser",
+    "editable": true,
+    "graphTooltip": 1,
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h"
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "datasource": "${DS_PROMETHEUS}",
+          "query": "label_values(slo_scout_system_info, environment)",
+          "current": {
+            "value": "production",
+            "text": "production"
+          },
+          "label": "Environment",
+          "multi": false,
+          "includeAll": false
+        },
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "${DS_PROMETHEUS}",
+          "query": "label_values(slo_scout_ingest_events_total, service)",
+          "current": {
+            "value": "all",
+            "text": "All"
+          },
+          "label": "Service",
+          "multi": false,
+          "includeAll": true
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "SLO Status Overview",
+        "type": "stat",
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 4
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:ingest_freshness:slo_status",
+            "legendFormat": "Ingest Freshness (99% < 60s)",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "slo_scout:vector_query:slo_status",
+            "legendFormat": "Query Latency (95% < 2s)",
+            "refId": "B",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "slo_scout:analysis:slo_status",
+            "legendFormat": "Summarization (95% < 5m)",
+            "refId": "C",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "orientation": "auto",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "1": {
+                    "text": "✓ Meeting SLO",
+                    "color": "green"
+                  },
+                  "0": {
+                    "text": "✗ Breaching SLO",
+                    "color": "red"
+                  }
+                }
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": 0,
+                  "color": "red"
+                },
+                {
+                  "value": 1,
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Ingest Lag (P99) - SLO Target: < 60s",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:ingest_lag:p99{service=~\"$service\"}",
+            "legendFormat": "{{service}} - {{telemetry_type}} P99",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "60",
+            "legendFormat": "SLO Threshold (60s)",
+            "refId": "B",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "SLO Threshold*"
+              },
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash"
+                  }
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "red"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Ingest Freshness Error Budget",
+        "type": "gauge",
+        "gridPos": {
+          "x": 12,
+          "y": 4,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:ingest_freshness:error_budget_remaining{service=~\"$service\"}",
+            "legendFormat": "{{service}}",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": -100,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": -100,
+                  "color": "dark-red"
+                },
+                {
+                  "value": -50,
+                  "color": "red"
+                },
+                {
+                  "value": 0,
+                  "color": "yellow"
+                },
+                {
+                  "value": 50,
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Embedding Queue Length - Monitor Backlog",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 12,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout_embedding_queue_length",
+            "legendFormat": "{{embedding_model}} Queue Length",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "1000",
+            "legendFormat": "Capacity Threshold",
+            "refId": "B",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Capacity Threshold"
+              },
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash"
+                  }
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "orange"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Embedding Generation Duration (P95)",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 12,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum by (embedding_model, le) (rate(slo_scout_embedding_generation_duration_seconds_bucket[5m])))",
+            "legendFormat": "{{embedding_model}} P95",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 6,
+        "title": "Vector Query Latency (P95) - SLO Target: < 2s",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 20,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:vector_query:p95_latency",
+            "legendFormat": "{{operation}} - {{collection}} P95",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "2",
+            "legendFormat": "SLO Threshold (2s)",
+            "refId": "B",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "SLO Threshold*"
+              },
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash"
+                  }
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "red"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Vector Query Error Budget",
+        "type": "gauge",
+        "gridPos": {
+          "x": 12,
+          "y": 20,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:vector_query:error_budget_remaining",
+            "legendFormat": "{{operation}} - {{collection}}",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": -100,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": -100,
+                  "color": "dark-red"
+                },
+                {
+                  "value": -50,
+                  "color": "red"
+                },
+                {
+                  "value": 0,
+                  "color": "yellow"
+                },
+                {
+                  "value": 50,
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 8,
+        "title": "Analysis Job Duration (P95) - SLO Target: < 5m",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 28,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:analysis:p95_duration{service=~\"$service\"}",
+            "legendFormat": "{{service}} P95 Duration",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          },
+          {
+            "expr": "300",
+            "legendFormat": "SLO Threshold (5m)",
+            "refId": "B",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "SLO Threshold*"
+              },
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash"
+                  }
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "red"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 9,
+        "title": "Summarization Error Budget",
+        "type": "gauge",
+        "gridPos": {
+          "x": 12,
+          "y": 28,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:analysis:error_budget_remaining{service=~\"$service\"}",
+            "legendFormat": "{{service}}",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": -100,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": -100,
+                  "color": "dark-red"
+                },
+                {
+                  "value": -50,
+                  "color": "red"
+                },
+                {
+                  "value": 0,
+                  "color": "yellow"
+                },
+                {
+                  "value": 50,
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 10,
+        "title": "LLM Request Duration (P95)",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 36,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:llm:p95_duration",
+            "legendFormat": "{{model}} - {{operation}} P95",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 11,
+        "title": "Daily LLM Spend (USD)",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 36,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout_daily_llm_spend_usd",
+            "legendFormat": "{{model}} Daily Spend",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            },
+            "decimals": 2
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 12,
+        "title": "Kafka Consumer Lag",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 44,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout_kafka_consumer_lag",
+            "legendFormat": "{{topic}} - {{consumer_group}} (p{{partition}})",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 13,
+        "title": "HTTP API Latency (P95) by Endpoint",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 44,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:api:p95_latency",
+            "legendFormat": "{{method}} {{endpoint}} P95",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 14,
+        "title": "Database Query Latency (P95)",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 52,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout:db:p95_latency",
+            "legendFormat": "{{database}} - {{operation}} ({{table}}) P95",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            }
+          }
+        ],
+        "options": {
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "calcs": [
+              "mean",
+              "max",
+              "last"
+            ]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "custom": {
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      },
+      {
+        "id": 15,
+        "title": "System Info",
+        "type": "table",
+        "gridPos": {
+          "x": 12,
+          "y": 52,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "slo_scout_system_info",
+            "legendFormat": "",
+            "refId": "A",
+            "datasource": {
+              "uid": "${DS_PROMETHEUS}"
+            },
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "options": {
+          "showHeader": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          }
+        },
+        "datasource": {
+          "uid": "${DS_PROMETHEUS}"
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "${DS_PROMETHEUS}",
+          "enable": true,
+          "iconColor": "green",
+          "tags": [
+            "deployment"
+          ]
+        },
+        {
+          "name": "SLO Breaches",
+          "datasource": "${DS_PROMETHEUS}",
+          "enable": true,
+          "iconColor": "red",
+          "tags": [
+            "slo_breach"
+          ]
+        }
+      ]
+    },
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "1m"
+  },
+  "overwrite": true
+}

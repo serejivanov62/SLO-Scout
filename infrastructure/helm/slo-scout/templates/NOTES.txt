@@ -1,0 +1,178 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+Environment: {{ .Values.global.environment }}
+Namespace: {{ include "slo-scout.namespace" . }}
+
+=============================================================================
+SLO-Scout has been deployed successfully!
+=============================================================================
+
+To get started:
+
+1. Check the status of all components:
+
+   kubectl get pods -n {{ include "slo-scout.namespace" . }}
+
+2. Wait for all pods to be ready (this may take 5-10 minutes):
+
+   kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{ .Release.Name }} \
+     -n {{ include "slo-scout.namespace" . }} --timeout=600s
+
+{{- if .Values.backend.ingress.enabled }}
+
+3. Access the SLO-Scout API:
+
+   {{- range .Values.backend.ingress.hosts }}
+   https://{{ .host }}
+   {{- end }}
+
+{{- else }}
+
+3. Access the API via port-forward:
+
+   kubectl port-forward -n {{ include "slo-scout.namespace" . }} \
+     svc/{{ include "slo-scout.fullname" . }}-backend 8000:8000
+
+   API will be available at: http://localhost:8000
+   API Documentation: http://localhost:8000/docs
+   Health Check: http://localhost:8000/health
+
+{{- end }}
+
+{{- if .Values.grafana.enabled }}
+{{- if .Values.grafana.ingress.enabled }}
+
+4. Access Grafana dashboards:
+
+   {{- range .Values.grafana.ingress.hosts }}
+   https://{{ . }}
+   {{- end }}
+
+{{- else }}
+
+4. Access Grafana dashboards:
+
+   kubectl port-forward -n {{ include "slo-scout.namespace" . }} \
+     svc/{{ .Release.Name }}-grafana 3000:80
+
+   Grafana will be available at: http://localhost:3000
+
+{{- end }}
+
+   Default credentials:
+   Username: {{ .Values.grafana.adminUser }}
+   Password: (run the following command to get the password)
+
+   kubectl get secret {{ .Release.Name }}-grafana -n {{ include "slo-scout.namespace" . }} \
+     -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+{{- end }}
+
+{{- if .Values.flink.jobmanager.enabled }}
+
+5. Access Flink Dashboard:
+
+   kubectl port-forward -n {{ include "slo-scout.namespace" . }} \
+     svc/{{ include "slo-scout.fullname" . }}-flink-jobmanager 8081:8081
+
+   Flink Dashboard: http://localhost:8081
+{{- end }}
+
+=============================================================================
+Next Steps:
+=============================================================================
+
+1. Configure telemetry collectors to point to your observability stack:
+
+   {{- if .Values.collectors.otlp.enabled }}
+   - OTLP Endpoint: {{ include "slo-scout.fullname" . }}-otlp-collector:4317 (gRPC)
+   - OTLP Endpoint: {{ include "slo-scout.fullname" . }}-otlp-collector:4318 (HTTP)
+   {{- end }}
+
+2. Trigger your first analysis:
+
+   curl -X POST http://localhost:8000/api/v1/analyze \
+     -H "Content-Type: application/json" \
+     -d '{
+       "service_name": "my-service",
+       "environment": "production",
+       "time_window_days": 30
+     }'
+
+3. Monitor the analysis job status:
+
+   curl http://localhost:8000/api/v1/analyze/{job_id}
+
+4. View discovered user journeys:
+
+   curl http://localhost:8000/api/v1/journeys
+
+5. Review SLI recommendations:
+
+   curl http://localhost:8000/api/v1/sli?include_evidence=true
+
+=============================================================================
+Monitoring SLO-Scout:
+=============================================================================
+
+{{- if .Values.serviceMonitor.enabled }}
+Prometheus ServiceMonitor is enabled. Metrics will be automatically scraped.
+{{- else }}
+Enable ServiceMonitor for automatic Prometheus scraping:
+  helm upgrade {{ .Release.Name }} --set serviceMonitor.enabled=true
+{{- end }}
+
+View SLO-Scout's own metrics:
+  kubectl port-forward -n {{ include "slo-scout.namespace" . }} \
+    svc/{{ include "slo-scout.fullname" . }}-backend 8000:8000
+
+  curl http://localhost:8000/metrics
+
+Key metrics to monitor:
+  - slo_scout_ingest_lag_seconds (should be < 60s)
+  - slo_scout_embedding_queue_length (backlog indicator)
+  - slo_scout_vector_query_latency_seconds (p95 should be < 2s)
+  - slo_scout_llm_calls_total (LLM usage)
+
+=============================================================================
+Troubleshooting:
+=============================================================================
+
+Check logs for backend:
+  kubectl logs -n {{ include "slo-scout.namespace" . }} \
+    -l app.kubernetes.io/component=backend --tail=100 -f
+
+Check logs for collectors:
+  kubectl logs -n {{ include "slo-scout.namespace" . }} \
+    -l app.kubernetes.io/component=prometheus-collector --tail=100 -f
+
+Check Flink job status:
+  kubectl logs -n {{ include "slo-scout.namespace" . }} \
+    -l app.kubernetes.io/component=flink-jobmanager --tail=100 -f
+
+Run database migrations manually:
+  kubectl exec -it -n {{ include "slo-scout.namespace" . }} \
+    deployment/{{ include "slo-scout.fullname" . }}-backend -- \
+    python -m alembic upgrade head
+
+=============================================================================
+Documentation:
+=============================================================================
+
+- Full Documentation: https://docs.slo-scout.io
+- API Reference: http://localhost:8000/docs (when port-forwarded)
+- GitHub: https://github.com/slo-scout/slo-scout
+- Slack Community: https://slo-scout.slack.com
+
+=============================================================================
+Support:
+=============================================================================
+
+If you encounter issues:
+1. Check the troubleshooting guide in README.md
+2. Review logs from all components
+3. Visit https://github.com/slo-scout/slo-scout/issues
+4. Join our Slack community for help
+
+Happy SLO monitoring! 🎯

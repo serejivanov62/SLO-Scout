@@ -1,0 +1,80 @@
+{{- if .Values.collectors.log.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-log-collector
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: log-collector
+spec:
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: log-collector
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: log-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "slo-scout.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: log-collector
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.collectors.log.image.repository }}:{{ .Values.collectors.log.image.tag }}"
+        imagePullPolicy: {{ .Values.collectors.log.image.pullPolicy }}
+        ports:
+        - name: fluentbit
+          containerPort: 8888
+          protocol: TCP
+        - name: health
+          containerPort: 8080
+          protocol: TCP
+        env:
+        {{- include "slo-scout.commonEnv" . | nindent 8 }}
+        - name: HTTP_PORT
+          value: {{ .Values.collectors.log.config.httpPort | quote }}
+        - name: LOG_PATH
+          value: {{ .Values.collectors.log.config.logPath | quote }}
+        {{- with .Values.collectors.log.env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.collectors.log.resources | nindent 10 }}
+        {{- with .Values.collectors.log.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        {{- if .Values.collectors.log.hostPath.enabled }}
+        - name: varlog
+          mountPath: /var/log/pods
+          readOnly: true
+        {{- end }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      {{- if .Values.collectors.log.hostPath.enabled }}
+      - name: varlog
+        hostPath:
+          path: {{ .Values.collectors.log.hostPath.path }}
+          type: Directory
+      {{- end }}
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+{{- end }}

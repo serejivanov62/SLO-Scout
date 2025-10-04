@@ -1,0 +1,73 @@
+# MinIO Bucket Configuration for SLO-Scout
+# S3-compatible object storage for raw telemetry and capsule samples
+
+buckets:
+  - name: raw-telemetry-blobs
+    description: "Oversized raw telemetry events (> 100KB)"
+    versioning: false
+    lifecycle:
+      rules:
+        - id: expire-after-7-days
+          status: Enabled
+          expiration:
+            days: 7
+          prefix: ""
+    quota:
+      type: hard
+      size: 500GB  # Adjust per deployment tier
+    access:
+      - principal: "slo-scout-collectors"
+        permissions: ["s3:PutObject", "s3:GetObject"]
+      - principal: "slo-scout-backend"
+        permissions: ["s3:GetObject", "s3:ListBucket"]
+
+  - name: capsule-samples
+    description: "Reservoir samples from capsule aggregations (JSONL.gz)"
+    versioning: false
+    lifecycle:
+      rules:
+        - id: expire-after-90-days
+          status: Enabled
+          expiration:
+            days: 90
+          prefix: ""
+        - id: transition-to-glacier-after-30-days
+          status: Enabled
+          transitions:
+            - days: 30
+              storage_class: GLACIER  # Cold storage for compliance
+          prefix: "compliance/"
+    quota:
+      type: hard
+      size: 2TB  # Adjust per deployment tier
+    access:
+      - principal: "slo-scout-streaming"
+        permissions: ["s3:PutObject", "s3:GetObject"]
+      - principal: "slo-scout-backend"
+        permissions: ["s3:GetObject", "s3:ListBucket", "s3:DeleteObject"]
+
+  - name: artifacts-generated
+    description: "Generated Prometheus rules, Grafana dashboards, runbooks"
+    versioning: true  # Keep artifact history
+    lifecycle:
+      rules:
+        - id: keep-versions-30-days
+          status: Enabled
+          noncurrent_version_expiration:
+            days: 30
+          prefix: ""
+    quota:
+      type: hard
+      size: 50GB
+    access:
+      - principal: "slo-scout-backend"
+        permissions: ["s3:*"]  # Full access for backend
+      - principal: "slo-scout-frontend"
+        permissions: ["s3:GetObject", "s3:ListBucket"]
+
+# Multi-tenancy per FR-027: Separate buckets per tenant
+# Naming pattern: {tenant_id}-raw-telemetry-blobs, {tenant_id}-capsule-samples
+# Implemented via bucket prefix isolation for cost efficiency
+
+# Encryption: Server-side encryption (SSE-S3) enabled by default
+# Compliance: Audit logging enabled for all bucket operations

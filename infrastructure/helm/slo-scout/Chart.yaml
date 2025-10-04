@@ -1,0 +1,43 @@
+apiVersion: v2
+name: slo-scout
+description: Automated SLI/SLO discovery and operational artifact generation platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - slo
+  - sli
+  - observability
+  - sre
+  - monitoring
+home: https://github.com/slo-scout/slo-scout
+sources:
+  - https://github.com/slo-scout/slo-scout
+maintainers:
+  - name: SLO-Scout Team
+    email: team@slo-scout.io
+dependencies:
+  - name: kafka
+    version: "26.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  - name: postgresql
+    version: "13.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    alias: timescaledb
+  - name: minio
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: minio.enabled
+  - name: prometheus
+    version: "25.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  - name: grafana
+    version: "7.x.x"
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled
+annotations:
+  category: Observability
+  licenses: Apache-2.0
