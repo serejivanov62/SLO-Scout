@@ -272,6 +272,26 @@ class PRCreateResponse(BaseModel):
     artifacts_included: List[UUID]
 
 
+# Service API schemas
+
+class ServiceCreate(BaseModel):
+    name: str
+    environment: str
+    owner_team: str
+    telemetry_endpoints: Dict[str, str] = Field(default_factory=dict)
+
+
+class Service(BaseModel):
+    id: str
+    name: str
+    environment: str
+    owner_team: str
+    telemetry_endpoints: Dict[str, str]
+    created_at: str
+    updated_at: str
+    status: str
+
+
 # Error schemas
 
 class ErrorResponse(BaseModel):
