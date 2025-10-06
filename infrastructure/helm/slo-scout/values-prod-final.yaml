@@ -192,3 +192,7 @@ grafana:
 
 serviceMonitor:
   enabled: false
+
+secrets:
+  slo-scout-db-credentials:
+    password: slo_scout_dev
