@@ -118,15 +118,19 @@ kafka:
     tag: 3.5.1
   metrics:
     enabled: false
-    jmx:
-      enabled: false
-    kafka:
-      enabled: false
-  mode: standalone
   kraft:
     enabled: false
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    controller:
+      protocol: PLAINTEXT
+    interbroker:
+      protocol: PLAINTEXT
+    external:
+      protocol: PLAINTEXT
   controller:
-    enabled: false
+    replicaCount: 0
   broker:
     replicaCount: 1
     persistence:
@@ -142,8 +146,6 @@ kafka:
     enabled: true
     replicaCount: 1
     persistence:
-      enabled: false
-    metrics:
       enabled: false
 
 timescaledb:
