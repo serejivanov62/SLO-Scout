@@ -116,6 +116,15 @@ postgresql:
           -- CREATE EXTENSION IF NOT EXISTS timescaledb;
           -- Basic setup only
 
+# External S3/MinIO configuration (for external storage)
+externalS3:
+  endpoint: "http://minio:9000"
+  bucket: "slo-scout"
+  region: "us-east-1"
+  accessKeyId: "minioadmin"
+  secretAccessKey: "minioadmin"
+  useSSL: false
+
 # MinIO
 minio:
   enabled: false
