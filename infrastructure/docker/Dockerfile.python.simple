@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Install dependencies via pip (no Poetry to avoid lock file issues)
+# Note: sentence-transformers and onnxruntime are heavy (~4GB), install only critical deps
 RUN pip install --no-cache-dir \
     fastapi>=0.104.0 \
     'uvicorn[standard]>=0.24.0' \
@@ -27,9 +28,7 @@ RUN pip install --no-cache-dir \
     kafka-python>=2.0.2 \
     pymilvus>=2.3.0 \
     boto3>=1.28.0 \
-    sentence-transformers>=2.2.0 \
     openai>=1.0.0 \
-    onnxruntime>=1.16.0 \
     prometheus-client>=0.18.0 \
     httpx>=0.25.0 \
     tenacity>=8.2.3 \
