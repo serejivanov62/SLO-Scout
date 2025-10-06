@@ -281,7 +281,7 @@ grafana:
   adminPassword: "slo_scout_admin"
 
 loki:
-  enabled: true
+  enabled: false
   loki:
     auth_enabled: false
     server:
