@@ -7,11 +7,14 @@ global:
 # Backend configuration
 backend:
   enabled: true
-  replicaCount: 3
+  replicaCount: 1
   image:
     repository: sloscout/backend
     tag: prod
     pullPolicy: IfNotPresent
+
+  autoscaling:
+    enabled: false
 
 # Collectors
 collectors:
@@ -30,6 +33,9 @@ collectors:
       repository: sloscout/otlp-collector
       tag: latest
       pullPolicy: IfNotPresent
+
+    autoscaling:
+      enabled: false
 
   log:
     enabled: true
@@ -51,11 +57,14 @@ flink:
 
   taskmanager:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     image:
       repository: sloscout/flink-taskmanager
       tag: "1.18.0"
       pullPolicy: IfNotPresent
+
+    autoscaling:
+      enabled: false
 
   jobs:
     fingerprinting:
