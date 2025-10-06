@@ -71,7 +71,7 @@ kafka:
   image:
     registry: docker.io
     repository: bitnami/kafka
-    tag: 3.6.1-debian-11-r0  # Use existing stable version
+    tag: 3.6.0-debian-11-r2  # Use existing stable version
 
   controller:
     replicaCount: 1
@@ -79,11 +79,11 @@ kafka:
       enabled: false
     resources:
       limits:
-        cpu: 1000m
-        memory: 1Gi
-      requests:
-        cpu: 250m
+        cpu: 500m
         memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
 
 # PostgreSQL (used as TimescaleDB)
 postgresql:
@@ -103,11 +103,11 @@ postgresql:
       enabled: false
     resources:
       limits:
-        cpu: 500m
-        memory: 512Mi
-      requests:
-        cpu: 100m
+        cpu: 200m
         memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
 
     # Disable TimescaleDB extension for now (not in standard PostgreSQL image)
     initdb:
