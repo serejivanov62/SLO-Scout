@@ -116,37 +116,16 @@ kafka:
     registry: docker.io
     repository: bitnamilegacy/kafka
     tag: 3.5.1
-  metrics:
+  replicaCount: 1
+  persistence:
     enabled: false
-  kraft:
-    enabled: false
-  listeners:
-    client:
-      protocol: PLAINTEXT
-    controller:
-      protocol: PLAINTEXT
-    interbroker:
-      protocol: PLAINTEXT
-    external:
-      protocol: PLAINTEXT
-  controller:
-    replicaCount: 0
-  broker:
-    replicaCount: 1
-    persistence:
-      enabled: false
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-  zookeeper:
-    enabled: true
-    replicaCount: 1
-    persistence:
-      enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 timescaledb:
   enabled: true
