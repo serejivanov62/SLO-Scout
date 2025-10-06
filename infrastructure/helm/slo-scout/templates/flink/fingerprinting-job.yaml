@@ -32,7 +32,7 @@ spec:
         - run
         - -d
         - -m
-        - "{{ include \"slo-scout.fullname\" . }}-flink-jobmanager:8081"
+        - {{ include "slo-scout.fullname" . }}-flink-jobmanager:8081
         - -p
         - "{{ .Values.flink.jobs.fingerprinting.config.parallelism }}"
         - /opt/flink/usrlib/slo-scout-streaming-1.0.0.jar
