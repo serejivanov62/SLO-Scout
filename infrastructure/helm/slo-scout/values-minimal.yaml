@@ -1,0 +1,148 @@
+# Minimal production values for small server
+global:
+  imageRegistry: docker.io
+
+# Backend - минимальная конфигурация
+backend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: sloscout/backend
+    tag: prod
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+
+# Collectors - по 1 реплике
+collectors:
+  prometheus:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/prometheus-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  otlp:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/otlp-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    autoscaling:
+      enabled: false
+
+  log:
+    enabled: true
+    image:
+      repository: sloscout/log-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# Flink - отключаем для экономии ресурсов
+flink:
+  enabled: false
+
+# Kafka - минимальная конфигурация
+kafka:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/kafka
+    tag: 3.6.0-debian-11-r2
+
+  controller:
+    replicaCount: 1
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+# PostgreSQL (вместо TimescaleDB)
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 16-debian-11
+
+  auth:
+    username: slo_scout
+    password: slo_scout_dev
+    database: slo_scout
+
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# External S3 (не используем MinIO для экономии)
+externalS3:
+  endpoint: "http://localhost:9000"
+  bucket: "slo-scout"
+  region: "us-east-1"
+  accessKeyId: "minioadmin"
+  secretAccessKey: "minioadmin"
+  useSSL: false
+
+# MinIO - отключаем
+minio:
+  enabled: false
+
+# Milvus - отключаем для экономии
+milvus:
+  enabled: false
+
+# Prometheus - отключаем
+prometheus:
+  enabled: false
+
+# Grafana - отключаем
+grafana:
+  enabled: false
+
+# Service monitors - отключаем
+serviceMonitor:
+  enabled: false
