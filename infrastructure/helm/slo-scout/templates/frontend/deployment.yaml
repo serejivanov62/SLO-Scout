@@ -29,7 +29,7 @@ spec:
           protocol: TCP
         env:
         - name: VITE_API_BASE_URL
-          value: "/api/v1"
+          value: "/api"
         livenessProbe:
           httpGet:
             path: /health

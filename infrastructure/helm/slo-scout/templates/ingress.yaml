@@ -14,7 +14,29 @@ spec:
   - host: {{ .Values.ingress.host }}
     http:
       paths:
-      # Frontend - root path
+      # Backend API paths (must be before frontend)
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "slo-scout.fullname" . }}-backend
+            port:
+              number: 8000
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "slo-scout.fullname" . }}-backend
+            port:
+              number: 8000
+      - path: /openapi.json
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "slo-scout.fullname" . }}-backend
+            port:
+              number: 8000
+      # Frontend - root path (last to not override backend paths)
       - path: /
         pathType: Prefix
         backend:
@@ -22,12 +44,4 @@ spec:
             name: {{ include "slo-scout.fullname" . }}-frontend
             port:
               number: 80
-      # Backend API - /api/v1 path
-      - path: /api/v1
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ include "slo-scout.fullname" . }}-backend
-            port:
-              number: 8000
 {{- end }}
