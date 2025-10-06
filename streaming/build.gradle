@@ -94,3 +94,7 @@ tasks.named('distTar') {
 tasks.named('distZip') {
     dependsOn shadowJar
 }
+
+tasks.named('startShadowScripts') {
+    dependsOn jar
+}
