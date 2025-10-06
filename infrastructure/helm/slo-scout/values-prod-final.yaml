@@ -187,6 +187,8 @@ timescaledb:
         memory: 512Mi
     extendedConfiguration: |
       max_connections = 200
+  networkPolicy:
+    enabled: false
 
 externalS3:
   endpoint: "http://slo-scout-minio:9000"
@@ -217,6 +219,8 @@ minio:
     - name: slo-scout
       policy: none
       purge: false
+  networkPolicy:
+    enabled: false
 
 milvus:
   enabled: true
