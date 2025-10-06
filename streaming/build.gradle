@@ -81,3 +81,16 @@ shadowJar {
 application {
     mainClass = 'com.sloscout.FingerprintingJob'
 }
+
+// Fix task dependencies for shadowJar
+tasks.named('startScripts') {
+    dependsOn shadowJar
+}
+
+tasks.named('distTar') {
+    dependsOn shadowJar
+}
+
+tasks.named('distZip') {
+    dependsOn shadowJar
+}
