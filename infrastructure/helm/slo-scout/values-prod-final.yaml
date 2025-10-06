@@ -240,6 +240,21 @@ milvus:
   # Disable built-in MinIO (using external MinIO)
   minio:
     enabled: false
+  # Disable built-in Pulsar (using external Kafka)
+  pulsar:
+    enabled: false
+  # Disable built-in etcd
+  etcd:
+    enabled: false
+  # Use external Kafka instead of Pulsar
+  externalKafka:
+    enabled: true
+    brokerList: "slo-scout-kafka:9092"
+  # Use external etcd
+  externalEtcd:
+    enabled: true
+    endpoints:
+      - slo-scout-etcd:2379
   # Use external MinIO
   externalS3:
     enabled: true
