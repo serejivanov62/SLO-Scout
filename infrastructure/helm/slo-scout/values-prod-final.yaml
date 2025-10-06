@@ -1,0 +1,175 @@
+# Production values - ВСЕ компоненты по 1 реплике
+global:
+  imageRegistry: docker.io
+
+backend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: sloscout/backend
+    tag: prod
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+
+collectors:
+  prometheus:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/prometheus-collector
+      tag: latest
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  otlp:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/otlp-collector
+      tag: latest
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    autoscaling:
+      enabled: false
+
+  log:
+    enabled: true
+    image:
+      repository: sloscout/log-collector
+      tag: latest
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+flink:
+  enabled: true
+  jobmanager:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/flink-jobmanager
+      tag: "1.18.0"
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  taskmanager:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/flink-taskmanager
+      tag: "1.18.0"
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: false
+
+  jobs:
+    fingerprinting:
+      enabled: true
+      image:
+        repository: sloscout/fingerprinting-job
+        tag: latest
+        pullPolicy: Always
+
+kafka:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/kafka
+    tag: 3.6.0-debian-11-r2
+  controller:
+    replicaCount: 1
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 16-debian-11
+  auth:
+    username: slo_scout
+    password: slo_scout_dev
+    database: slo_scout
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+externalS3:
+  endpoint: "http://localhost:9000"
+  bucket: "slo-scout"
+  region: "us-east-1"
+  accessKeyId: "minioadmin"
+  secretAccessKey: "minioadmin"
+  useSSL: false
+
+externalMilvus:
+  host: "localhost"
+  port: 19530
+
+minio:
+  enabled: false
+
+milvus:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
