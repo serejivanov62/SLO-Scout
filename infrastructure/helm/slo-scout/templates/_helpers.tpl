@@ -97,7 +97,7 @@ Database host
 */}}
 {{- define "slo-scout.databaseHost" -}}
 {{- if .Values.timescaledb.enabled }}
-{{- printf "%s-timescaledb" .Release.Name }}
+{{- printf "%s-timescaledb.%s.svc.cluster.local" .Release.Name (include "slo-scout.namespace" .) }}
 {{- else }}
 {{- required "External database host required when timescaledb.enabled=false" .Values.externalDatabase.host }}
 {{- end }}
