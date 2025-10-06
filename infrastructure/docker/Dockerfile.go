@@ -19,14 +19,14 @@ RUN go mod tidy
 
 # Build the binary
 ARG SERVICE=prometheus-collector
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+RUN CGO_ENABLED=1 GOOS=linux go build -a \
     -ldflags="-w -s" -o /collector ./${SERVICE}/cmd
 
 # Runtime image
 FROM debian:bullseye-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates wget \
+    ca-certificates wget librdkafka1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
