@@ -136,7 +136,7 @@ kafka:
       cpu: 500m
       memory: 512Mi
 
-postgresql:
+timescaledb:
   enabled: true
   image:
     registry: docker.io
@@ -156,6 +156,8 @@ postgresql:
       limits:
         cpu: 300m
         memory: 512Mi
+    extendedConfiguration: |
+      max_connections = 200
 
 externalS3:
   endpoint: "http://localhost:9000"
