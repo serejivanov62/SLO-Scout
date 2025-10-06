@@ -16,6 +16,7 @@ import (
 
 // OTLPCollector receives OTLP traces via gRPC per T042
 type OTLPCollector struct {
+	tracecollectorv1.UnimplementedTraceServiceServer
 	kafkaProducer *common.KafkaProducer
 	codec         *goavro.Codec
 }
