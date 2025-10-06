@@ -14,6 +14,21 @@ backend:
     repository: sloscout/backend
     tag: prod
     pullPolicy: Always
+  database:
+    passwordSecret:
+      name: slo-scout-timescaledb
+      key: password
+  storage:
+    accessKeySecret:
+      name: slo-scout-minio-credentials
+      key: accessKey
+    secretKeySecret:
+      name: slo-scout-minio-credentials
+      key: secretKey
+  llm:
+    apiKeySecret:
+      name: slo-scout-llm-credentials
+      key: apiKey
   resources:
     requests:
       cpu: 100m
