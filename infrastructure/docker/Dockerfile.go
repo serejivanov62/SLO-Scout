@@ -15,9 +15,9 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-ARG COLLECTOR_TYPE=prometheus-collector
+ARG SERVICE=prometheus-collector
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo \
-    -o /collector ./cmd/${COLLECTOR_TYPE}
+    -o /collector ./${SERVICE}/cmd
 
 # Runtime image
 FROM alpine:latest
