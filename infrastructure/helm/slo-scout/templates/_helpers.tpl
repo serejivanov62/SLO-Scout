@@ -84,7 +84,7 @@ Kafka bootstrap servers
 */}}
 {{- define "slo-scout.kafkaBootstrapServers" -}}
 {{- if .Values.customKafka.enabled }}
-{{- printf "%s-kafka:9092" (include "slo-scout.fullname" .) }}
+{{- printf "%s-kafka.%s.svc.cluster.local:9092" (include "slo-scout.fullname" .) (include "slo-scout.namespace" .) }}
 {{- else if .Values.kafka.enabled }}
 {{- printf "%s-kafka:9092" .Release.Name }}
 {{- else }}
