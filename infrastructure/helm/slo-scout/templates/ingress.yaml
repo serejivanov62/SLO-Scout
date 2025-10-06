@@ -22,8 +22,8 @@ spec:
             name: {{ include "slo-scout.fullname" . }}-frontend
             port:
               number: 80
-      # Backend API - /api path
-      - path: /api
+      # Backend API - /api/v1 path
+      - path: /api/v1
         pathType: Prefix
         backend:
           service:
