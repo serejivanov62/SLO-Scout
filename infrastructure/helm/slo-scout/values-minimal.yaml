@@ -131,6 +131,11 @@ externalS3:
 minio:
   enabled: false
 
+# External Milvus (заглушка, не используется)
+externalMilvus:
+  host: "localhost"
+  port: 19530
+
 # Milvus - отключаем для экономии
 milvus:
   enabled: false

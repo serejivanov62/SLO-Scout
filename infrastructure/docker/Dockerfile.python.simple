@@ -10,29 +10,11 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install dependencies via pip (no Poetry to avoid lock file issues)
-# Note: sentence-transformers and onnxruntime are heavy (~4GB), install only critical deps
-RUN pip install --no-cache-dir \
-    fastapi>=0.104.0 \
-    'uvicorn[standard]>=0.24.0' \
-    sqlalchemy>=2.0.0 \
-    alembic>=1.12.0 \
-    psycopg2-binary>=2.9.9 \
-    asyncpg>=0.29.0 \
-    pydantic>=2.4.0 \
-    pydantic-settings>=2.0.0 \
-    'python-jose[cryptography]>=3.3.0' \
-    'passlib[bcrypt]>=1.7.4' \
-    python-multipart>=0.0.6 \
-    aiofiles>=23.2.1 \
-    kafka-python>=2.0.2 \
-    pymilvus>=2.3.0 \
-    boto3>=1.28.0 \
-    openai>=1.0.0 \
-    prometheus-client>=0.18.0 \
-    httpx>=0.25.0 \
-    tenacity>=8.2.3 \
-    pyyaml>=6.0.1
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install dependencies from requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
