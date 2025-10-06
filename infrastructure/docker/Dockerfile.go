@@ -16,13 +16,15 @@ COPY . .
 
 # Build the binary
 ARG SERVICE=prometheus-collector
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo \
-    -o /collector ./${SERVICE}/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags="-w -s" -o /collector ./${SERVICE}/cmd
 
 # Runtime image
-FROM alpine:latest
+FROM debian:bullseye-slim
 
-RUN apk --no-cache add ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -30,7 +32,7 @@ WORKDIR /app
 COPY --from=builder /collector ./collector
 
 # Create non-root user
-RUN adduser -D -u 1000 collector
+RUN useradd -r -u 1000 -s /bin/false collector
 USER collector
 
 # Health check
