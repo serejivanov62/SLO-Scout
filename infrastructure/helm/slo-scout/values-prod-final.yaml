@@ -125,6 +125,19 @@ kafka:
   mode: standalone
   kraft:
     enabled: false
+  controller:
+    enabled: false
+  broker:
+    replicaCount: 1
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   zookeeper:
     enabled: true
     replicaCount: 1
@@ -132,16 +145,6 @@ kafka:
       enabled: false
     metrics:
       enabled: false
-  replicaCount: 1
-  persistence:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
 
 timescaledb:
   enabled: true
