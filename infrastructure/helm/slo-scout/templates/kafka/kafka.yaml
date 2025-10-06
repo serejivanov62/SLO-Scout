@@ -11,7 +11,7 @@ spec:
   ports:
   - port: 9092
     name: client
-  clusterIP: None
+    targetPort: 9092
   selector:
     {{- include "slo-scout.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: kafka
@@ -25,7 +25,6 @@ metadata:
     {{- include "slo-scout.labels" . | nindent 4 }}
     app.kubernetes.io/component: kafka
 spec:
-  serviceName: {{ include "slo-scout.fullname" . }}-kafka
   replicas: {{ .Values.customKafka.replicaCount }}
   selector:
     matchLabels:

@@ -11,11 +11,13 @@ spec:
   ports:
   - port: 2181
     name: client
+    targetPort: 2181
   - port: 2888
     name: follower
+    targetPort: 2888
   - port: 3888
     name: election
-  clusterIP: None
+    targetPort: 3888
   selector:
     {{- include "slo-scout.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: zookeeper
@@ -29,7 +31,6 @@ metadata:
     {{- include "slo-scout.labels" . | nindent 4 }}
     app.kubernetes.io/component: zookeeper
 spec:
-  serviceName: {{ include "slo-scout.fullname" . }}-zookeeper
   replicas: 1
   selector:
     matchLabels:
