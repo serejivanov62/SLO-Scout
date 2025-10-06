@@ -116,16 +116,26 @@ kafka:
     registry: docker.io
     repository: bitnamilegacy/kafka
     tag: 3.5.1
-  replicaCount: 1
-  persistence:
-    enabled: false
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+  controller:
+    replicaCount: 1
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  kraft:
+    enabled: true
+  metrics:
+    jmx:
+      enabled: false
+    kafka:
+      enabled: false
+    serviceMonitor:
+      enabled: false
 
 timescaledb:
   enabled: true
