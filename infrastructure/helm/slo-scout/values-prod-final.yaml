@@ -114,23 +114,21 @@ kafka:
   enabled: true
   image:
     registry: docker.io
-    repository: bitnamilegacy/kafka
-    tag: 3.5.1
+    repository: apache/kafka
+    tag: 4.1.0
   replicaCount: 1
   persistence:
-    enabled: false
-  kraft:
     enabled: false
   zookeeper:
     enabled: true
     replicaCount: 1
     persistence:
       enabled: false
-  metrics:
-    jmx:
-      enabled: false
-    kafka:
-      enabled: false
+  extraEnvVars:
+    - name: ALLOW_PLAINTEXT_LISTENER
+      value: "yes"
+    - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+      value: "slo-scout-kafka-zookeeper:2181"
   resources:
     requests:
       cpu: 100m
