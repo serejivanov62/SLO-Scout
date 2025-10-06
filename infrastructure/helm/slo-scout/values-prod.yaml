@@ -1,0 +1,148 @@
+# Production values for SLO-Scout
+# Override with proper production settings
+
+global:
+  imageRegistry: docker.io
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: sloscout/backend
+    tag: prod
+    pullPolicy: IfNotPresent
+
+# Collectors
+collectors:
+  prometheus:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/prometheus-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+  otlp:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/otlp-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+  log:
+    enabled: true
+    image:
+      repository: sloscout/log-collector
+      tag: latest
+      pullPolicy: IfNotPresent
+
+# Flink
+flink:
+  enabled: true
+  jobmanager:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: sloscout/flink-jobmanager
+      tag: "1.18.0"
+      pullPolicy: IfNotPresent
+
+  taskmanager:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: sloscout/flink-taskmanager
+      tag: "1.18.0"
+      pullPolicy: IfNotPresent
+
+  jobs:
+    fingerprinting:
+      enabled: true
+      image:
+        repository: sloscout/fingerprinting-job
+        tag: latest
+        pullPolicy: IfNotPresent
+
+# Kafka configuration - fix image tag issue
+kafka:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/kafka
+    tag: 3.6.1-debian-11-r0  # Use existing stable version
+
+  controller:
+    replicaCount: 1
+    persistence:
+      enabled: false
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+# PostgreSQL (used as TimescaleDB)
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: 16-debian-11
+
+  auth:
+    username: slo_scout
+    password: slo_scout_dev
+    database: slo_scout
+
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+    # Disable TimescaleDB extension for now (not in standard PostgreSQL image)
+    initdb:
+      scripts:
+        init.sql: |
+          -- CREATE EXTENSION IF NOT EXISTS timescaledb;
+          -- Basic setup only
+
+# MinIO
+minio:
+  enabled: false
+
+# Milvus
+milvus:
+  enabled: true
+  standalone:
+    enabled: true
+    persistence:
+      enabled: false
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+# Prometheus
+prometheus:
+  enabled: false
+
+# Grafana
+grafana:
+  enabled: false
+
+# Service monitors
+serviceMonitor:
+  enabled: false
