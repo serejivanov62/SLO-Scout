@@ -1,0 +1,11 @@
+FROM flink:1.18.0-java11
+
+# Copy JAR file
+COPY build/libs/slo-scout-streaming-1.0.0.jar /opt/flink/usrlib/
+
+# Set working directory
+WORKDIR /opt/flink
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:8081/overview || exit 1
