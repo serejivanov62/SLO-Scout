@@ -4,6 +4,9 @@ global:
   security:
     allowInsecureImages: true
 
+networkPolicy:
+  enabled: false
+
 backend:
   enabled: true
   replicaCount: 1
