@@ -1,7 +1,7 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.21-bullseye AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git gcc musl-dev
+RUN apt-get update && apt-get install -y git gcc make && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
