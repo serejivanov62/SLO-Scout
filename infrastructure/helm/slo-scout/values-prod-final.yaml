@@ -118,17 +118,23 @@ kafka:
     tag: 3.6.0
   metrics:
     enabled: false
-  controller:
+  kraft:
+    enabled: false
+  zookeeper:
+    enabled: true
     replicaCount: 1
     persistence:
       enabled: false
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+  replicaCount: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 postgresql:
   enabled: true
@@ -150,8 +156,6 @@ postgresql:
       limits:
         cpu: 300m
         memory: 512Mi
-    extendedConfiguration: |
-      max_connections = 200
 
 externalS3:
   endpoint: "http://localhost:9000"
