@@ -118,12 +118,18 @@ kafka:
     tag: 3.6.0
   metrics:
     enabled: false
+    jmx:
+      enabled: false
+    kafka:
+      enabled: false
   kraft:
     enabled: false
   zookeeper:
     enabled: true
     replicaCount: 1
     persistence:
+      enabled: false
+    metrics:
       enabled: false
   controller:
     replicaCount: 1
@@ -141,8 +147,8 @@ timescaledb:
   enabled: true
   image:
     registry: docker.io
-    repository: bitnami/postgresql
-    tag: 16-debian-11
+    repository: bitnamilegacy/postgresql
+    tag: 16.0.0
   auth:
     username: slo_scout
     password: slo_scout_dev
