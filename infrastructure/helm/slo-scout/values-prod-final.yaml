@@ -235,12 +235,62 @@ milvus:
     enabled: false
 
 prometheus:
-  enabled: false
+  enabled: true
+  server:
+    enabled: true
+    persistentVolume:
+      enabled: false
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    retention: "7d"
+  alertmanager:
+    enabled: false
 
 grafana:
+  enabled: true
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  adminUser: admin
+  adminPassword: "slo_scout_admin"
+
+loki:
+  enabled: true
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  config:
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    limits_config:
+      retention_period: 168h  # 7 days
+
+podDisruptionBudget:
   enabled: false
 
 serviceMonitor:
+  enabled: false
+
+podMonitor:
   enabled: false
 
 secrets:
