@@ -116,6 +116,8 @@ kafka:
     registry: docker.io
     repository: bitnamilegacy/kafka
     tag: 3.6.0
+  metrics:
+    enabled: false
   controller:
     replicaCount: 1
     persistence:
