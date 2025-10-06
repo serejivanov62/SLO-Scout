@@ -112,8 +112,8 @@ kafka:
   enabled: true
   image:
     registry: docker.io
-    repository: bitnami/kafka
-    tag: 3.6.0-debian-11-r2
+    repository: bitnamilegacy/kafka
+    tag: 3.6.0
   controller:
     replicaCount: 1
     persistence:
