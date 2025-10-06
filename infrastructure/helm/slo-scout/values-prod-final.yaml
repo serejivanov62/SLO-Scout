@@ -352,6 +352,13 @@ serviceMonitor:
 podMonitor:
   enabled: false
 
+ingress:
+  enabled: true
+  className: traefik
+  host: 203.31.40.42.nip.io
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+
 secrets:
   slo-scout-db-credentials:
     password: slo_scout_dev
