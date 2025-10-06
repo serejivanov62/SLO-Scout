@@ -115,13 +115,14 @@ kafka:
   image:
     registry: docker.io
     repository: bitnamilegacy/kafka
-    tag: 3.6.0
+    tag: 3.5.1
   metrics:
     enabled: false
     jmx:
       enabled: false
     kafka:
       enabled: false
+  mode: standalone
   kraft:
     enabled: false
   zookeeper:
@@ -131,17 +132,16 @@ kafka:
       enabled: false
     metrics:
       enabled: false
-  controller:
-    replicaCount: 1
-    persistence:
-      enabled: false
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+  replicaCount: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 timescaledb:
   enabled: true

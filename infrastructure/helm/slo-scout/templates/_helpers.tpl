@@ -95,7 +95,7 @@ Database host
 */}}
 {{- define "slo-scout.databaseHost" -}}
 {{- if .Values.timescaledb.enabled }}
-{{- printf "%s-timescaledb-postgresql" .Release.Name }}
+{{- printf "%s-timescaledb" .Release.Name }}
 {{- else }}
 {{- required "External database host required when timescaledb.enabled=false" .Values.externalDatabase.host }}
 {{- end }}
