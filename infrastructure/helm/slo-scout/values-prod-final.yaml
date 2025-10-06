@@ -111,24 +111,12 @@ flink:
         pullPolicy: Always
 
 kafka:
+  enabled: false
+
+customKafka:
   enabled: true
-  image:
-    registry: docker.io
-    repository: apache/kafka
-    tag: 4.1.0
+  image: confluentinc/cp-kafka:7.5.0
   replicaCount: 1
-  persistence:
-    enabled: false
-  zookeeper:
-    enabled: true
-    replicaCount: 1
-    persistence:
-      enabled: false
-  extraEnvVars:
-    - name: ALLOW_PLAINTEXT_LISTENER
-      value: "yes"
-    - name: KAFKA_CFG_ZOOKEEPER_CONNECT
-      value: "slo-scout-kafka-zookeeper:2181"
   resources:
     requests:
       cpu: 100m

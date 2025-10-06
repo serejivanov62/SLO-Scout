@@ -83,7 +83,9 @@ Image pull policy
 Kafka bootstrap servers
 */}}
 {{- define "slo-scout.kafkaBootstrapServers" -}}
-{{- if .Values.kafka.enabled }}
+{{- if .Values.customKafka.enabled }}
+{{- printf "%s-kafka:9092" (include "slo-scout.fullname" .) }}
+{{- else if .Values.kafka.enabled }}
 {{- printf "%s-kafka:9092" .Release.Name }}
 {{- else }}
 {{- required "External Kafka bootstrap servers required when kafka.enabled=false" .Values.externalKafka.bootstrapServers }}

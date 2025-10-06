@@ -1,0 +1,66 @@
+{{- if .Values.customKafka.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-zookeeper
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zookeeper
+spec:
+  ports:
+  - port: 2181
+    name: client
+  - port: 2888
+    name: follower
+  - port: 3888
+    name: election
+  clusterIP: None
+  selector:
+    {{- include "slo-scout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: zookeeper
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "slo-scout.fullname" . }}-zookeeper
+  namespace: {{ include "slo-scout.namespace" . }}
+  labels:
+    {{- include "slo-scout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zookeeper
+spec:
+  serviceName: {{ include "slo-scout.fullname" . }}-zookeeper
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "slo-scout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: zookeeper
+  template:
+    metadata:
+      labels:
+        {{- include "slo-scout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.5.0
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: follower
+        - containerPort: 3888
+          name: election
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+{{- end }}
