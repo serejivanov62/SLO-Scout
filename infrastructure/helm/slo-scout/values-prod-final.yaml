@@ -1,6 +1,8 @@
 # Production values - ВСЕ компоненты по 1 реплике
 global:
   imageRegistry: docker.io
+  security:
+    allowInsecureImages: true
 
 backend:
   enabled: true
