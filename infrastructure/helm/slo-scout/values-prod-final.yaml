@@ -7,6 +7,25 @@ global:
 networkPolicy:
   enabled: false
 
+frontend:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: sloscout/frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 backend:
   enabled: true
   replicaCount: 1
@@ -26,6 +45,9 @@ backend:
       name: slo-scout-minio-credentials
       key: secretKey
   llm:
+    provider: "openai"
+    endpoint: "https://openrouter.ai/api/v1"
+    model: "anthropic/claude-3.5-sonnet"
     apiKeySecret:
       name: slo-scout-llm-credentials
       key: apiKey
@@ -167,7 +189,7 @@ timescaledb:
       max_connections = 200
 
 externalS3:
-  endpoint: "http://localhost:9000"
+  endpoint: "http://slo-scout-minio:9000"
   bucket: "slo-scout"
   region: "us-east-1"
   accessKeyId: "minioadmin"
@@ -175,14 +197,42 @@ externalS3:
   useSSL: false
 
 externalMilvus:
-  host: "localhost"
+  host: "slo-scout-milvus"
   port: 19530
 
 minio:
-  enabled: false
+  enabled: true
+  mode: standalone
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  buckets:
+    - name: slo-scout
+      policy: none
+      purge: false
 
 milvus:
-  enabled: false
+  enabled: true
+  cluster:
+    enabled: false
+  standalone:
+    enabled: true
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  persistence:
+    enabled: false
 
 prometheus:
   enabled: false
@@ -196,3 +246,8 @@ serviceMonitor:
 secrets:
   slo-scout-db-credentials:
     password: slo_scout_dev
+  slo-scout-llm-credentials:
+    apiKey: "OPENROUTER_API_KEY_PLACEHOLDER"  # Replace with actual OpenRouter API key
+  slo-scout-minio-credentials:
+    accessKey: "minioadmin"
+    secretKey: "minioadmin"
