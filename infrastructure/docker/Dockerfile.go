@@ -6,16 +6,13 @@ RUN apt-get update && apt-get install -y git gcc make && rm -rf /var/lib/apt/lis
 WORKDIR /build
 
 # Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
+COPY go.mod ./
 
 # Copy source code
 COPY . .
 
-# Ensure go.sum is up to date
-RUN go mod tidy
+# Download dependencies and tidy
+RUN go mod tidy && go mod download
 
 # Build the binary
 ARG SERVICE=prometheus-collector
