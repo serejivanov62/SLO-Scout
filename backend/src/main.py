@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from .api import analyze, journeys, sli, slo, artifacts, pr, services
+from .api import analysis, journeys, slis, slos, artifacts, pr, services
 
 # Configure logging
 logging.basicConfig(
@@ -56,10 +56,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(services.router)
-app.include_router(analyze.router)
+app.include_router(analysis.router)
 app.include_router(journeys.router)
-app.include_router(sli.router)
-app.include_router(slo.router)
+app.include_router(slis.router)
+app.include_router(slos.router)
 app.include_router(artifacts.router)
 app.include_router(pr.router)
 

@@ -21,7 +21,7 @@ from .schemas import (
     SLOVariant,
 )
 from .deps import get_db
-from ..models.slo import SLO, ComparisonOperator as DBComparisonOperator, Severity as DBSeverity, SLOVariant as DBSLOVariant
+from ..models.slo import SLO
 from ..models.sli import SLI
 from ..validators.dryrun_evaluator import DryRunEvaluator
 
