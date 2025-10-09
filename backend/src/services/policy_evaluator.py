@@ -10,15 +10,30 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from uuid import UUID
+from enum import Enum
 import logging
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from ..models.policy import Policy, EnforcementMode, PolicyScope
+from ..models.policy import Policy
 from .blast_radius import BlastRadiusCalculator, BlastRadiusMetrics
 
 logger = logging.getLogger(__name__)
+
+
+class EnforcementMode(str, Enum):
+    """Policy enforcement mode"""
+    BLOCK = "block"
+    WARN = "warn"
+    AUDIT = "audit"
+
+
+class PolicyScope(str, Enum):
+    """Policy scope"""
+    GLOBAL = "global"
+    ORGANIZATION = "organization"
+    SERVICE = "service"
 
 
 @dataclass
