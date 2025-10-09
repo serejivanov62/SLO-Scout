@@ -16,7 +16,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
-from ..models.artifact import Artifact, ArtifactType
+from ..models.artifact import Artifact, ArtifactTypeEnum
 from ..models.slo import SLO
 from ..models.sli import SLI
 from ..models.user_journey import UserJourney
@@ -82,10 +82,10 @@ class BlastRadiusCalculator:
             Dictionary mapping artifact types to base cost multipliers
         """
         return {
-            ArtifactType.PROMETHEUS_RECORDING.value: Decimal("5.0"),  # $5 per service
-            ArtifactType.PROMETHEUS_ALERT.value: Decimal("10.0"),     # $10 per service
-            ArtifactType.GRAFANA_DASHBOARD.value: Decimal("2.0"),     # $2 per service
-            ArtifactType.RUNBOOK.value: Decimal("1.0"),               # $1 per service (minimal)
+            ArtifactTypeEnum.PROMETHEUS_RECORDING.value: Decimal("5.0"),  # $5 per service
+            ArtifactTypeEnum.PROMETHEUS_ALERT.value: Decimal("10.0"),     # $10 per service
+            ArtifactTypeEnum.GRAFANA_DASHBOARD.value: Decimal("2.0"),     # $2 per service
+            ArtifactTypeEnum.RUNBOOK.value: Decimal("1.0"),               # $1 per service (minimal)
         }
 
     async def calculate_from_artifact(
@@ -239,7 +239,7 @@ class BlastRadiusCalculator:
 
     def _calculate_cost_impact(
         self,
-        artifact_type: ArtifactType,
+        artifact_type: ArtifactTypeEnum,
         affected_services_count: int
     ) -> Decimal:
         """

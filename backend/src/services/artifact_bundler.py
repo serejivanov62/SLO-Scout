@@ -20,7 +20,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from src.models.artifact import Artifact, ArtifactType, ApprovalStatus
+from src.models.artifact import Artifact, ArtifactTypeEnum, ArtifactStatusEnum
 
 
 logger = logging.getLogger(__name__)
@@ -91,26 +91,26 @@ class ArtifactBundler:
 
     # Directory structure mapping
     DIRECTORY_MAP = {
-        ArtifactType.PROMETHEUS_RECORDING: "prometheus/recording_rules",
-        ArtifactType.PROMETHEUS_ALERT: "prometheus/alert_rules",
-        ArtifactType.GRAFANA_DASHBOARD: "grafana/dashboards",
-        ArtifactType.RUNBOOK: "runbooks",
+        ArtifactTypeEnum.PROMETHEUS_RECORDING: "prometheus/recording_rules",
+        ArtifactTypeEnum.PROMETHEUS_ALERT: "prometheus/alert_rules",
+        ArtifactTypeEnum.GRAFANA_DASHBOARD: "grafana/dashboards",
+        ArtifactTypeEnum.RUNBOOK: "runbooks",
     }
 
     # File extension mapping
     EXTENSION_MAP = {
-        ArtifactType.PROMETHEUS_RECORDING: ".yml",
-        ArtifactType.PROMETHEUS_ALERT: ".yml",
-        ArtifactType.GRAFANA_DASHBOARD: ".json",
-        ArtifactType.RUNBOOK: ".yml",
+        ArtifactTypeEnum.PROMETHEUS_RECORDING: ".yml",
+        ArtifactTypeEnum.PROMETHEUS_ALERT: ".yml",
+        ArtifactTypeEnum.GRAFANA_DASHBOARD: ".json",
+        ArtifactTypeEnum.RUNBOOK: ".yml",
     }
 
     # File name template
     FILENAME_MAP = {
-        ArtifactType.PROMETHEUS_RECORDING: "{service}_recording_rules{ext}",
-        ArtifactType.PROMETHEUS_ALERT: "{service}_alert_rules{ext}",
-        ArtifactType.GRAFANA_DASHBOARD: "{service}_dashboard{ext}",
-        ArtifactType.RUNBOOK: "{service}_runbook{ext}",
+        ArtifactTypeEnum.PROMETHEUS_RECORDING: "{service}_recording_rules{ext}",
+        ArtifactTypeEnum.PROMETHEUS_ALERT: "{service}_alert_rules{ext}",
+        ArtifactTypeEnum.GRAFANA_DASHBOARD: "{service}_dashboard{ext}",
+        ArtifactTypeEnum.RUNBOOK: "{service}_runbook{ext}",
     }
 
     def __init__(self, session: AsyncSession):
@@ -158,7 +158,7 @@ class ArtifactBundler:
         unapproved = [
             str(a.artifact_id)
             for a in artifacts
-            if a.approval_status != ApprovalStatus.APPROVED
+            if a.approval_status != ArtifactStatusEnum.APPROVED
         ]
 
         if unapproved:
@@ -169,7 +169,7 @@ class ArtifactBundler:
 
     def generate_file_path(
         self,
-        artifact_type: ArtifactType,
+        artifact_type: ArtifactTypeEnum,
         service_name: str,
     ) -> str:
         """Generate conventional file path for artifact.
@@ -307,7 +307,7 @@ class ArtifactBundler:
         self,
         slo_id: str,
         service_name: str,
-        approval_status: Optional[ApprovalStatus] = ApprovalStatus.APPROVED,
+        approval_status: Optional[ArtifactStatusEnum] = ArtifactStatusEnum.APPROVED,
     ) -> ArtifactBundle:
         """Bundle all artifacts for a specific SLO.
 
