@@ -9,21 +9,18 @@ from sqlalchemy import pool
 from alembic import context
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+src_path = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_path))
 
-# Import Base and all models
-from models.base import Base
-from models import (
-    artifact,
-    capsule,
-    evidence_pointer,
-    instrumentation_recommendation,
-    policy,
-    service,
-    sli,
-    slo,
-    user_journey,
-)
+# Import Base directly without triggering models/__init__.py
+import importlib.util
+base_spec = importlib.util.spec_from_file_location("base", src_path / "models" / "base.py")
+base_module = importlib.util.module_from_spec(base_spec)
+base_spec.loader.exec_module(base_module)
+Base = base_module.Base
+
+# Now import all models to register them with Base.metadata
+import models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

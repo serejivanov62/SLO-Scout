@@ -1,65 +1,142 @@
 """
-Artifact model per data-model.md
+Artifact model - Generated Prometheus/Grafana configurations
 """
-from sqlalchemy import Column, String, Enum, Text, JSON, Integer, TIMESTAMP, UUID as _unused, ForeignKey, CheckConstraint
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
+from datetime import datetime
+from typing import Optional
+from uuid import UUID as PyUUID
+from decimal import Decimal
 import enum
 
-from .base import Base, UUID
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Text,
+    Index,
+    ForeignKey,
+    CheckConstraint,
+    Numeric,
+    Enum,
+    text,
+)
+from sqlalchemy.orm import relationship
+
+from src.models.base import Base, UUID
 
 
-class ArtifactType(str, enum.Enum):
-    PROMETHEUS_RECORDING = "prometheus_recording"
-    PROMETHEUS_ALERT = "prometheus_alert"
+class ArtifactTypeEnum(str, enum.Enum):
+    """Artifact type enum"""
+    PROMETHEUS_RULE = "prometheus_rule"
     GRAFANA_DASHBOARD = "grafana_dashboard"
     RUNBOOK = "runbook"
 
 
-class ValidationStatus(str, enum.Enum):
-    PENDING = "pending"
-    PASSED = "passed"
-    FAILED = "failed"
-
-
-class ApprovalStatus(str, enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
-class DeploymentStatus(str, enum.Enum):
-    PENDING = "pending"
+class ArtifactStatusEnum(str, enum.Enum):
+    """Artifact status enum"""
+    DRAFT = "draft"
     DEPLOYED = "deployed"
-    ROLLBACK = "rollback"
+    ROLLED_BACK = "rolled_back"
 
 
 class Artifact(Base):
     """
-    A generated operational output (Prometheus rule, Grafana panel, runbook)
+    Artifact model for generated Prometheus/Grafana configurations.
 
-    Per data-model.md Artifact entity
+    Represents auto-generated monitoring artifacts (rules, dashboards, runbooks)
+    with deployment tracking.
+
+    Attributes:
+        artifact_id: UUID primary key
+        slo_id: Foreign key to slos table
+        artifact_type: Type of artifact
+        content: YAML/JSON configuration content
+        confidence_score: AI confidence score (0.0-1.0)
+        status: Deployment status
+        pr_url: GitHub PR URL for the deployment
+        deployed_at: Timestamp when deployed
+        created_at: Timestamp when artifact was created
     """
-    __tablename__ = "artifact"
+    __tablename__ = "artifacts"
 
-    artifact_id = Column(UUID(), primary_key=True, default=uuid.uuid4)
-    slo_id = Column(UUID(), ForeignKey("slo.slo_id", ondelete="CASCADE"), nullable=False)
-    artifact_type = Column(Enum(ArtifactType), nullable=False)
-    content = Column(Text, nullable=False)  # YAML or JSON
-    validation_status = Column(Enum(ValidationStatus), nullable=False, default=ValidationStatus.PENDING)
-    validation_errors = Column(JSON, nullable=True)
-    approval_status = Column(Enum(ApprovalStatus), nullable=False, default=ApprovalStatus.PENDING)
-    approved_by = Column(String(255), nullable=True)
-    approved_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    deployment_status = Column(Enum(DeploymentStatus), nullable=False, default=DeploymentStatus.PENDING)
-    deployment_pr_url = Column(String(500), nullable=True)
-    deployed_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    version = Column(Integer, nullable=False, default=1)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    # Primary key
+    artifact_id: PyUUID = Column(
+        UUID,
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="UUID v4 primary key"
+    )
+
+    # Foreign keys
+    slo_id: PyUUID = Column(
+        UUID,
+        ForeignKey("slos.slo_id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Foreign key to slos table"
+    )
+
+    # Data columns
+    artifact_type: ArtifactTypeEnum = Column(
+        Enum(ArtifactTypeEnum, name="artifact_type_enum", create_type=False),
+        nullable=False,
+        comment="Type of artifact"
+    )
+
+    content: str = Column(
+        Text,
+        nullable=False,
+        comment="YAML/JSON configuration content"
+    )
+
+    confidence_score: Decimal = Column(
+        Numeric(4, 3),
+        nullable=False,
+        comment="AI confidence score (0.000-1.000)"
+    )
+
+    status: ArtifactStatusEnum = Column(
+        Enum(ArtifactStatusEnum, name="artifact_status_enum", create_type=False),
+        nullable=False,
+        server_default="draft",
+        comment="Deployment status"
+    )
+
+    pr_url: Optional[str] = Column(
+        String(512),
+        nullable=True,
+        comment="GitHub PR URL for the deployment"
+    )
+
+    deployed_at: Optional[datetime] = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when deployed"
+    )
+
+    created_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when artifact was created"
+    )
+
+    # Constraints and indexes
+    __table_args__ = (
+        CheckConstraint(
+            "confidence_score >= 0 AND confidence_score <= 1",
+            name="ck_confidence_score_range"
+        ),
+        CheckConstraint(
+            "(status = 'deployed' AND deployed_at IS NOT NULL) OR (status != 'deployed')",
+            name="ck_deployment_consistency"
+        ),
+        Index("idx_artifacts_slo_status", "slo_id", "status"),
+        Index("idx_artifacts_status_deployed", "status", text("deployed_at DESC")),
+        Index("idx_artifacts_type", "artifact_type"),
+        Index("idx_artifacts_created", text("created_at DESC")),
+    )
 
     # Relationships
     slo = relationship("SLO", back_populates="artifacts")
 
     def __repr__(self) -> str:
-        return f"<Artifact {self.artifact_type} v{self.version} ({self.approval_status})>"
+        return f"<Artifact(id={self.artifact_id}, type={self.artifact_type}, status={self.status})>"

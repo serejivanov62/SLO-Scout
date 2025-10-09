@@ -1,48 +1,103 @@
 """
-Policy model per data-model.md
+Policy model - Deployment safety rules
 """
-from sqlalchemy import Column, String, Enum, JSON, Boolean, TIMESTAMP, UUID as _unused, CheckConstraint
-from sqlalchemy.sql import func
-import uuid
-import enum
+from datetime import datetime
+from typing import Optional
+from uuid import UUID as PyUUID
+from decimal import Decimal
 
-from .base import Base, UUID
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Text,
+    Index,
+    CheckConstraint,
+    Numeric,
+    Boolean,
+    UniqueConstraint,
+    text,
+)
 
-
-class PolicyScope(str, enum.Enum):
-    GLOBAL = "global"
-    ORGANIZATION = "organization"
-    SERVICE = "service"
-
-
-class EnforcementMode(str, enum.Enum):
-    BLOCK = "block"
-    WARN = "warn"
-    AUDIT = "audit"
+from src.models.base import Base, UUID
 
 
 class Policy(Base):
     """
-    A governance rule enforced by Policy Guard
+    Policy model for deployment safety rules.
 
-    Per data-model.md Policy entity
+    Defines guardrails for automatic artifact deployment based on blast radius
+    and other safety criteria.
+
+    Attributes:
+        policy_id: UUID primary key
+        name: Unique policy name
+        description: Policy description
+        blast_radius_threshold: Maximum blast radius allowed (0.00-1.00)
+        enabled: Whether policy is active
+        created_at: Timestamp when policy was created
+        updated_at: Timestamp when policy was last updated
     """
-    __tablename__ = "policy"
+    __tablename__ = "policies"
 
-    policy_id = Column(UUID(), primary_key=True, default=uuid.uuid4)
-    name = Column(String(255), nullable=False)
-    scope = Column(Enum(PolicyScope), nullable=False)
-    scope_id = Column(UUID(), nullable=True)  # FK to organization or service
-    invariants = Column(JSON, nullable=False)  # {max_services_affected: 10, max_cost_impact_usd: 100}
-    allowed_actions = Column(JSON, nullable=False)  # [artifact_deploy, auto_scale, rollback]
-    enforcement_mode = Column(Enum(EnforcementMode), nullable=False)
-    audit_required = Column(Boolean, nullable=False, default=True)
-    created_by = Column(String(255), nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    # Primary key
+    policy_id: PyUUID = Column(
+        UUID,
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="UUID v4 primary key"
+    )
 
-    # Constraints per data-model.md
-    __table_args__ = ()  # Constraints disabled for SQLite compatibility
+    # Data columns
+    name: str = Column(
+        String(255),
+        nullable=False,
+        unique=True,
+        comment="Unique policy name"
+    )
+
+    description: Optional[str] = Column(
+        Text,
+        nullable=True,
+        comment="Policy description"
+    )
+
+    blast_radius_threshold: Decimal = Column(
+        Numeric(3, 2),
+        nullable=False,
+        comment="Maximum blast radius allowed (0.00-1.00)"
+    )
+
+    enabled: bool = Column(
+        Boolean,
+        nullable=False,
+        server_default=text("TRUE"),
+        comment="Whether policy is active"
+    )
+
+    created_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when policy was created"
+    )
+
+    updated_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when policy was last updated"
+    )
+
+    # Constraints and indexes
+    __table_args__ = (
+        CheckConstraint(
+            "blast_radius_threshold >= 0 AND blast_radius_threshold <= 1",
+            name="ck_blast_radius_threshold_range"
+        ),
+        Index("idx_policies_enabled", "enabled", postgresql_where=text("enabled = true")),
+    )
 
     def __repr__(self) -> str:
-        return f"<Policy {self.name} ({self.enforcement_mode})>"
+        status = "enabled" if self.enabled else "disabled"
+        return f"<Policy(id={self.policy_id}, name={self.name}, status={status})>"

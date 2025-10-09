@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.3.0
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/linkedin/goavro/v2 v2.12.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/common v0.45.0

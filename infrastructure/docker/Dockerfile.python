@@ -1,36 +1,65 @@
-FROM python:3.11-slim
+# Multi-stage build for SLO-Scout backend
+# Optimized for production with minimal image size
 
-# Install system dependencies
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files first (for better caching)
-COPY pyproject.toml poetry.lock* ./
+# Copy dependency files
+COPY requirements.txt ./
 
-# Install dependencies only (no dev dependencies, no root package yet)
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-root --without dev
+# Create virtual environment and install dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r sloscout && useradd -r -g sloscout sloscout
+
+# Set working directory
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
-COPY . .
+COPY --chown=sloscout:sloscout . .
 
-# Install the root package (src module)
-RUN poetry install --no-interaction --no-ansi --only-root
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Switch to non-root user
+USER sloscout
+
+# Expose port
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command (can be overridden for worker mode)
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

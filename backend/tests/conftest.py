@@ -1,10 +1,11 @@
 """
-Pytest fixtures for contract and integration tests
+Pytest fixtures for contract and integration tests with TimescaleDB support
 """
 import pytest
+import os
 from httpx import AsyncClient, ASGITransport
 from typing import AsyncGenerator, Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from uuid import uuid4
 from datetime import datetime
@@ -13,32 +14,62 @@ from src.models.base import Base
 from src.api.deps import get_db
 
 
-@pytest.fixture(scope="function")
-def test_db() -> Generator[Session, None, None]:
+@pytest.fixture(scope="session")
+def timescaledb_engine():
     """
-    Create an in-memory SQLite database for testing
+    Create TimescaleDB engine for integration tests
 
-    Each test gets a fresh database session
+    Uses environment variable TEST_DATABASE_URL or falls back to SQLite
     """
-    # Create in-memory SQLite database
-    engine = create_engine(
-        "sqlite:///:memory:",
-        echo=False,
-        connect_args={"check_same_thread": False}
+    database_url = os.getenv(
+        "TEST_DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/sloscout_test"
     )
 
+    # Check if we should use TimescaleDB (PostgreSQL) or fallback to SQLite
+    use_timescaledb = database_url.startswith("postgresql://")
+
+    if use_timescaledb:
+        try:
+            engine = create_engine(database_url, echo=False, pool_pre_ping=True)
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return engine
+        except Exception as e:
+            print(f"Warning: Could not connect to TimescaleDB: {e}")
+            print("Falling back to SQLite for tests")
+            use_timescaledb = False
+
+    if not use_timescaledb:
+        # Fallback to SQLite
+        engine = create_engine(
+            "sqlite:///:memory:",
+            echo=False,
+            connect_args={"check_same_thread": False}
+        )
+        return engine
+
+
+@pytest.fixture(scope="function")
+def test_db(timescaledb_engine) -> Generator[Session, None, None]:
+    """
+    Create a test database session with TimescaleDB support
+
+    Each test gets a fresh database session with proper cleanup
+    """
     # Only import models here to avoid early loading
     from src.models import service, user_journey, sli, slo, artifact
 
     # Create all tables
     try:
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=timescaledb_engine)
     except Exception as e:
-        # Ignore SQLite-specific constraint errors
-        print(f"Warning: Some constraints may not be supported in SQLite: {e}")
+        # Some constraints may not be supported in SQLite
+        print(f"Warning during table creation: {e}")
 
     # Create session factory
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=timescaledb_engine)
 
     # Create session
     session = SessionLocal()
@@ -48,8 +79,9 @@ def test_db() -> Generator[Session, None, None]:
     finally:
         session.rollback()
         session.close()
+        # Clean up tables after each test
         try:
-            Base.metadata.drop_all(bind=engine)
+            Base.metadata.drop_all(bind=timescaledb_engine)
         except:
             pass
 

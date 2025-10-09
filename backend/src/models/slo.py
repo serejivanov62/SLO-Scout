@@ -1,67 +1,117 @@
 """
-SLO (Service Level Objective) model per data-model.md
+SLO model - Service Level Objectives with thresholds
 """
-from sqlalchemy import Column, String, Enum, Numeric, Interval, TIMESTAMP, UUID as _unused, ForeignKey, CheckConstraint
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
+from datetime import datetime
+from typing import Optional
+from uuid import UUID as PyUUID
+from decimal import Decimal
 import enum
 
-from .base import Base, UUID
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Index,
+    ForeignKey,
+    CheckConstraint,
+    Numeric,
+    Enum,
+    text,
+)
+from sqlalchemy.orm import relationship
+
+from src.models.base import Base, UUID
 
 
-class ComparisonOperator(str, enum.Enum):
-    LT = "lt"
-    LTE = "lte"
-    GT = "gt"
-    GTE = "gte"
-    EQ = "eq"
-
-
-class Severity(str, enum.Enum):
-    CRITICAL = "critical"
-    MAJOR = "major"
-    MINOR = "minor"
-
-
-class SLOVariant(str, enum.Enum):
-    CONSERVATIVE = "conservative"
-    BALANCED = "balanced"
-    AGGRESSIVE = "aggressive"
+class ThresholdVariantEnum(str, enum.Enum):
+    """SLO threshold variant enum"""
+    CONSERVATIVE = "conservative"  # Higher error budget thresholds (slower alerts)
+    BALANCED = "balanced"          # Standard thresholds (Google SRE defaults)
+    AGGRESSIVE = "aggressive"      # Lower thresholds (faster alerts, more noise)
 
 
 class SLO(Base):
     """
-    A target threshold for an SLI over a time window
+    SLO model for Service Level Objectives with error budget thresholds.
 
-    Per data-model.md SLO entity
-    Time-series hypertable partitioned by created_at
+    Attributes:
+        slo_id: UUID primary key
+        sli_id: Foreign key to slis table
+        name: SLO name
+        target_percentage: Target percentage (0.00-100.00)
+        time_window: Time window for SLO (e.g., "30d", "7d", "24h")
+        threshold_variant: Alert threshold variant
+        created_at: Timestamp when SLO was created
     """
-    __tablename__ = "slo"
+    __tablename__ = "slos"
 
-    slo_id = Column(UUID(), primary_key=True, default=uuid.uuid4)
-    sli_id = Column(UUID(), ForeignKey("sli.sli_id", ondelete="CASCADE"), nullable=False)
-    threshold_value = Column(Numeric, nullable=False)
-    comparison_operator = Column(Enum(ComparisonOperator), nullable=False)
-    time_window = Column(Interval, nullable=False)
-    target_percentage = Column(Numeric(5, 2), nullable=False)  # 0-100
-    severity = Column(Enum(Severity), nullable=False)
-    breach_policy = Column(String(255), nullable=True)
-    historical_breach_frequency = Column(Numeric, nullable=True)
-    variant = Column(Enum(SLOVariant), nullable=False)
-    error_budget_remaining = Column(Numeric(5, 2), nullable=True)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    approved_by = Column(String(255), nullable=True)
-    approved_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    deployed_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    # Primary key
+    slo_id: PyUUID = Column(
+        UUID,
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="UUID v4 primary key"
+    )
+
+    # Foreign keys
+    sli_id: PyUUID = Column(
+        UUID,
+        ForeignKey("slis.sli_id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Foreign key to slis table"
+    )
+
+    # Data columns
+    name: str = Column(
+        String(255),
+        nullable=False,
+        comment="SLO name"
+    )
+
+    target_percentage: Decimal = Column(
+        Numeric(5, 2),
+        nullable=False,
+        comment="Target percentage (0.00-100.00)"
+    )
+
+    time_window: str = Column(
+        String(50),
+        nullable=False,
+        comment="Time window for SLO (e.g., '30d', '7d', '24h')"
+    )
+
+    threshold_variant: ThresholdVariantEnum = Column(
+        Enum(ThresholdVariantEnum, name="threshold_variant_enum", create_type=False),
+        nullable=False,
+        server_default="balanced",
+        comment="Alert threshold variant"
+    )
+
+    created_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when SLO was created"
+    )
+
+    # Constraints and indexes
+    __table_args__ = (
+        CheckConstraint(
+            "target_percentage >= 0 AND target_percentage <= 100",
+            name="ck_target_percentage_range"
+        ),
+        Index("idx_slos_sli", "sli_id"),
+        Index("idx_slos_threshold_variant", "threshold_variant"),
+        Index("idx_slos_created", text("created_at DESC")),
+    )
 
     # Relationships
     sli = relationship("SLI", back_populates="slos")
-    artifacts = relationship("Artifact", back_populates="slo", cascade="all, delete-orphan")
-
-    # Constraints per data-model.md
-    # Note: Disabled for SQLite compatibility in tests
-    __table_args__ = ()
+    artifacts = relationship(
+        "Artifact",
+        back_populates="slo",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
-        return f"<SLO {self.sli_id} {self.comparison_operator} {self.threshold_value} ({self.variant})>"
+        return f"<SLO(id={self.slo_id}, name={self.name}, target={self.target_percentage}%)>"

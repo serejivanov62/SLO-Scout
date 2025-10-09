@@ -1,81 +1,240 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
-from datetime import datetime
-from .schemas import Service, ServiceCreate
+"""
+Services API router - Service registration and management endpoints
+Implements services-api.yaml contract
+"""
+from typing import Optional, Dict, Any
+from uuid import UUID
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/api/v1/services", tags=["services"])
+from ..models.service import Service, EnvironmentEnum, ServiceStatusEnum
+from .deps import get_db
 
-# Mock data for development
-MOCK_SERVICES = [
-    {
-        "id": "svc-001",
-        "name": "payments-api",
-        "environment": "production",
-        "owner_team": "Platform Team",
-        "telemetry_endpoints": {
-            "prometheus": "http://prometheus:9090",
-            "traces": "http://jaeger:16686"
-        },
-        "created_at": "2025-01-01T00:00:00Z",
-        "updated_at": "2025-01-01T00:00:00Z",
-        "status": "active"
-    },
-    {
-        "id": "svc-002",
-        "name": "auth-service",
-        "environment": "production",
-        "owner_team": "Security Team",
-        "telemetry_endpoints": {
-            "prometheus": "http://prometheus:9090"
-        },
-        "created_at": "2025-01-01T00:00:00Z",
-        "updated_at": "2025-01-01T00:00:00Z",
-        "status": "active"
-    },
-    {
-        "id": "svc-003",
-        "name": "user-profile",
-        "environment": "staging",
-        "owner_team": "Users Team",
-        "telemetry_endpoints": {},
-        "created_at": "2025-01-01T00:00:00Z",
-        "updated_at": "2025-01-01T00:00:00Z",
-        "status": "active"
-    }
-]
+# Create router
+router = APIRouter(prefix="/api/v1/services", tags=["Services"])
 
 
-@router.get("", response_model=List[dict])
-async def list_services():
-    """List all services"""
-    return MOCK_SERVICES
+# Pydantic schemas per contract
+class ServiceCreate(BaseModel):
+    """Service creation request schema"""
+    name: str = Field(..., min_length=1, max_length=255)
+    environment: str = Field(..., pattern="^(prod|staging|dev)$")
+    owner_team: str = Field(..., min_length=1, max_length=255)
+    telemetry_endpoints: Dict[str, str] = Field(...)
+    label_mappings: Dict[str, Dict[str, str]] = Field(...)
 
 
-@router.get("/{service_id}", response_model=dict)
-async def get_service(service_id: str):
-    """Get service by ID"""
-    for service in MOCK_SERVICES:
-        if service["id"] == service_id:
-            return service
-    raise HTTPException(status_code=404, detail="Service not found")
+class ServiceUpdate(BaseModel):
+    """Service update request schema"""
+    owner_team: Optional[str] = Field(None, min_length=1, max_length=255)
+    telemetry_endpoints: Optional[Dict[str, str]] = None
+    label_mappings: Optional[Dict[str, Dict[str, str]]] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive|archived)$")
 
 
-@router.post("", response_model=dict, status_code=201)
-async def create_service(service: dict):
+class ServiceResponse(BaseModel):
+    """Service response schema"""
+    id: str
+    name: str
+    environment: str
+    owner_team: str
+    telemetry_endpoints: Dict[str, str]
+    label_mappings: Dict[str, Dict[str, str]]
+    created_at: str
+    updated_at: str
+    status: str
+
+    @classmethod
+    def from_orm(cls, service: Service):
+        """Convert SQLAlchemy model to Pydantic schema"""
+        return cls(
+            id=str(service.id),
+            name=service.name,
+            environment=service.environment.value,
+            owner_team=service.owner_team,
+            telemetry_endpoints=service.telemetry_endpoints,
+            label_mappings=service.label_mappings,
+            created_at=service.created_at.isoformat(),
+            updated_at=service.updated_at.isoformat(),
+            status=service.status.value
+        )
+
+
+class ServiceListResponse(BaseModel):
+    """Service list response schema"""
+    services: list[ServiceResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ErrorResponse(BaseModel):
+    """Error response schema"""
+    error: str
+    message: str
+    details: Optional[Dict[str, Any]] = None
+
+
+# Route handlers
+@router.get("", response_model=ServiceListResponse, status_code=status.HTTP_200_OK)
+async def list_services(
+    environment: Optional[str] = Query(None, pattern="^(prod|staging|dev)$"),
+    service_status: Optional[str] = Query(None, alias="status", pattern="^(active|inactive|archived)$"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+) -> ServiceListResponse:
+    """List all services with optional filtering"""
+    query = db.query(Service)
+
+    # Apply filters
+    if environment:
+        query = query.filter(Service.environment == EnvironmentEnum(environment))
+
+    if service_status:
+        query = query.filter(Service.status == ServiceStatusEnum(service_status))
+
+    # Get total count before pagination
+    total = query.count()
+
+    # Apply pagination
+    services = query.offset(offset).limit(limit).all()
+
+    return ServiceListResponse(
+        services=[ServiceResponse.from_orm(s) for s in services],
+        total=total,
+        limit=limit,
+        offset=offset
+    )
+
+
+@router.post("", response_model=ServiceResponse, status_code=status.HTTP_201_CREATED)
+async def create_service(
+    service_data: ServiceCreate,
+    db: Session = Depends(get_db)
+) -> ServiceResponse:
     """Create a new service"""
-    new_service = {
-        "id": f"svc-{len(MOCK_SERVICES) + 1:03d}",
-        **service,
-        "created_at": datetime.utcnow().isoformat() + "Z",
-        "updated_at": datetime.utcnow().isoformat() + "Z"
-    }
-    MOCK_SERVICES.append(new_service)
-    return new_service
+    # Check for duplicate name+environment
+    existing = db.query(Service).filter(
+        Service.name == service_data.name,
+        Service.environment == EnvironmentEnum(service_data.environment)
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "DUPLICATE_SERVICE",
+                "message": f"Service with name '{service_data.name}' already exists in environment '{service_data.environment}'",
+                "details": {"service_id": str(existing.id)}
+            }
+        )
+
+    # Create new service
+    new_service = Service(
+        name=service_data.name,
+        environment=EnvironmentEnum(service_data.environment),
+        owner_team=service_data.owner_team,
+        telemetry_endpoints=service_data.telemetry_endpoints,
+        label_mappings=service_data.label_mappings
+    )
+
+    db.add(new_service)
+    db.commit()
+    db.refresh(new_service)
+
+    return ServiceResponse.from_orm(new_service)
 
 
-@router.delete("/{service_id}", status_code=204)
-async def delete_service(service_id: str):
-    """Delete a service"""
-    global MOCK_SERVICES
-    MOCK_SERVICES = [s for s in MOCK_SERVICES if s["id"] != service_id]
-    return None
+@router.get("/{service_id}", response_model=ServiceResponse, status_code=status.HTTP_200_OK)
+async def get_service(
+    service_id: UUID,
+    db: Session = Depends(get_db)
+) -> ServiceResponse:
+    """Get service by ID"""
+    service = db.query(Service).filter(Service.id == service_id).first()
+
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "SERVICE_NOT_FOUND",
+                "message": f"Service with ID '{service_id}' not found",
+                "details": {}
+            }
+        )
+
+    return ServiceResponse.from_orm(service)
+
+
+@router.patch("/{service_id}", response_model=ServiceResponse, status_code=status.HTTP_200_OK)
+async def update_service(
+    service_id: UUID,
+    update_data: ServiceUpdate,
+    db: Session = Depends(get_db)
+) -> ServiceResponse:
+    """Update service configuration"""
+    service = db.query(Service).filter(Service.id == service_id).first()
+
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "SERVICE_NOT_FOUND",
+                "message": f"Service with ID '{service_id}' not found",
+                "details": {}
+            }
+        )
+
+    # Apply updates
+    if update_data.owner_team is not None:
+        service.owner_team = update_data.owner_team
+
+    if update_data.telemetry_endpoints is not None:
+        service.telemetry_endpoints = update_data.telemetry_endpoints
+
+    if update_data.label_mappings is not None:
+        service.label_mappings = update_data.label_mappings
+
+    if update_data.status is not None:
+        service.status = ServiceStatusEnum(update_data.status)
+
+    # Update timestamp
+    service.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(service)
+
+    return ServiceResponse.from_orm(service)
+
+
+@router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_service(
+    service_id: UUID,
+    hard_delete: bool = Query(False),
+    db: Session = Depends(get_db)
+) -> None:
+    """Delete or archive a service"""
+    service = db.query(Service).filter(Service.id == service_id).first()
+
+    if not service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "SERVICE_NOT_FOUND",
+                "message": f"Service with ID '{service_id}' not found",
+                "details": {}
+            }
+        )
+
+    if hard_delete:
+        # Permanently delete (cascades to related data)
+        db.delete(service)
+    else:
+        # Archive only
+        service.status = ServiceStatusEnum.ARCHIVED
+        service.updated_at = datetime.now(timezone.utc)
+
+    db.commit()

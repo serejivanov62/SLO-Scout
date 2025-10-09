@@ -1,58 +1,141 @@
 """
-Service model per data-model.md
+Service model - Registry of monitored services with telemetry connection details
 """
-from sqlalchemy import Column, String, Enum, JSON, TIMESTAMP, CheckConstraint
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
+from datetime import datetime
+from typing import Optional
+from uuid import UUID as PyUUID, uuid4
 import enum
 
-from .base import Base, UUID
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Index,
+    Enum,
+    CheckConstraint,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+
+from src.models.base import Base, UUID
 
 
-class ServiceStatus(str, enum.Enum):
-    ACTIVE = "active"
-    PAUSED = "paused"
-    ARCHIVED = "archived"
-
-
-class Environment(str, enum.Enum):
+class EnvironmentEnum(str, enum.Enum):
+    """Service environment enum"""
     PROD = "prod"
     STAGING = "staging"
     DEV = "dev"
 
 
+class ServiceStatusEnum(str, enum.Enum):
+    """Service status enum"""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    ARCHIVED = "archived"
+
+
 class Service(Base):
     """
-    Represents a monitored production service/application
+    Service model representing monitored services with telemetry connection details.
 
-    Per data-model.md Service entity
+    Attributes:
+        id: UUID primary key
+        name: Service name (unique per environment)
+        environment: Service environment (prod/staging/dev)
+        owner_team: Team responsible for the service
+        telemetry_endpoints: JSONB mapping of telemetry system endpoints
+        label_mappings: JSONB mapping of labels for each telemetry system
+        created_at: Timestamp when service was created
+        updated_at: Timestamp when service was last updated
+        status: Service status (active/inactive/archived)
     """
-    __tablename__ = "service"
+    __tablename__ = "services"
 
-    service_id = Column(UUID(), primary_key=True, default=uuid.uuid4)
-    name = Column(String(255), nullable=False)
-    environment = Column(Enum(Environment), nullable=False)
-    owner_team = Column(String(255), nullable=False)
-    telemetry_endpoints = Column(JSON, nullable=False)  # {prometheus_url, otlp_endpoint, loki_url, rum_token}
-    retention_policy_id = Column(UUID(), nullable=True)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-    status = Column(Enum(ServiceStatus), nullable=False, default=ServiceStatus.ACTIVE)
-    organization_id = Column(UUID(), nullable=False)
+    # Columns
+    id: PyUUID = Column(
+        UUID,
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="UUID v4 primary key"
+    )
+
+    name: str = Column(
+        String(255),
+        nullable=False,
+        comment="Service name"
+    )
+
+    environment: EnvironmentEnum = Column(
+        Enum(EnvironmentEnum, name="environment_enum", create_type=False),
+        nullable=False,
+        comment="Service environment"
+    )
+
+    owner_team: str = Column(
+        String(255),
+        nullable=False,
+        comment="Team responsible for the service"
+    )
+
+    telemetry_endpoints: dict = Column(
+        JSONB,
+        nullable=False,
+        comment="Telemetry system endpoints (prometheus, loki, jaeger)"
+    )
+
+    label_mappings: dict = Column(
+        JSONB,
+        nullable=False,
+        comment="Label mappings for each telemetry system"
+    )
+
+    created_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when service was created"
+    )
+
+    updated_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when service was last updated"
+    )
+
+    status: ServiceStatusEnum = Column(
+        Enum(ServiceStatusEnum, name="status_enum", create_type=False),
+        nullable=False,
+        server_default="active",
+        comment="Service status"
+    )
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint("name", "environment", name="uq_services_name_environment"),
+        Index("idx_services_status_environment", "status", "environment"),
+    )
 
     # Relationships
-    user_journeys = relationship("UserJourney", back_populates="service", cascade="all, delete-orphan")
-    capsules = relationship("Capsule", back_populates="service", cascade="all, delete-orphan")
-    instrumentation_recommendations = relationship(
-        "InstrumentationRecommendation",
+    telemetry_events = relationship(
+        "TelemetryEvent",
         back_populates="service",
         cascade="all, delete-orphan"
     )
 
-    # Constraints per data-model.md
-    # Note: json_typeof() is PostgreSQL-specific, removed for SQLite compatibility in tests
-    __table_args__ = tuple() if False else ()
+    capsules = relationship(
+        "Capsule",
+        back_populates="service",
+        cascade="all, delete-orphan"
+    )
+
+    user_journeys = relationship(
+        "UserJourney",
+        back_populates="service",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
-        return f"<Service {self.name} ({self.environment})>"
+        return f"<Service(id={self.id}, name={self.name}, environment={self.environment})>"

@@ -1,40 +1,121 @@
 """
-UserJourney model per data-model.md
+UserJourney model - Discovered user interaction patterns
 """
-from sqlalchemy import Column, String, Integer, Numeric, JSON, TIMESTAMP, UUID as _unused, ForeignKey, CheckConstraint, ARRAY, Text
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
+from datetime import datetime
+from typing import Optional
+from uuid import UUID as PyUUID
+from decimal import Decimal
 
-from .base import Base, UUID
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Text,
+    Index,
+    ForeignKey,
+    CheckConstraint,
+    Numeric,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
+
+from src.models.base import Base, UUID
 
 
 class UserJourney(Base):
     """
-    A critical path through the service identified from trace analysis and RUM data
+    UserJourney model for discovered user interaction patterns.
 
-    Per data-model.md UserJourney entity
+    Represents end-to-end user flows discovered through telemetry analysis.
+
+    Attributes:
+        journey_id: UUID primary key
+        service_id: Foreign key to services table
+        name: Journey name
+        description: Journey description
+        entry_points: JSONB list of entry operations
+        critical_path: JSONB sequence of steps with latency metrics
+        confidence_score: AI confidence score (0.0-1.0)
+        discovered_at: Timestamp when journey was discovered
     """
-    __tablename__ = "user_journey"
+    __tablename__ = "user_journeys"
 
-    journey_id = Column(UUID(), primary_key=True, default=uuid.uuid4)
-    service_id = Column(UUID(), ForeignKey("service.service_id", ondelete="CASCADE"), nullable=False)
-    name = Column(String(255), nullable=False)
-    entry_point = Column(String(500), nullable=False)
-    exit_point = Column(String(500), nullable=False)
-    step_sequence = Column(JSON, nullable=False)  # [{span_name, duration_p50, error_rate}]
-    traffic_volume_per_day = Column(Integer, nullable=True, default=0)  # Made nullable for SQLite
-    confidence_score = Column(Numeric(5, 2), nullable=False)  # 0-100
-    sample_trace_ids = Column(JSON, nullable=False)  # Changed from ARRAY to JSON for SQLite compatibility
-    discovered_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    last_seen_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    # Primary key
+    journey_id: PyUUID = Column(
+        UUID,
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+        comment="UUID v4 primary key"
+    )
+
+    # Foreign keys
+    service_id: PyUUID = Column(
+        UUID,
+        ForeignKey("services.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Foreign key to services table"
+    )
+
+    # Data columns
+    name: str = Column(
+        String(255),
+        nullable=False,
+        comment="Journey name"
+    )
+
+    description: Optional[str] = Column(
+        Text,
+        nullable=True,
+        comment="Journey description"
+    )
+
+    entry_points: dict = Column(
+        JSONB,
+        nullable=False,
+        comment="List of entry operations"
+    )
+
+    critical_path: dict = Column(
+        JSONB,
+        nullable=False,
+        comment="Sequence of steps with latency metrics"
+    )
+
+    confidence_score: Decimal = Column(
+        Numeric(4, 3),
+        nullable=False,
+        comment="AI confidence score (0.000-1.000)"
+    )
+
+    discovered_at: datetime = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("NOW()"),
+        comment="Timestamp when journey was discovered"
+    )
+
+    # Constraints and indexes
+    __table_args__ = (
+        CheckConstraint(
+            "confidence_score >= 0 AND confidence_score <= 1",
+            name="ck_confidence_score_range"
+        ),
+        Index("idx_journeys_service_discovered", "service_id", text("discovered_at DESC")),
+        Index("idx_journeys_confidence", text("confidence_score DESC")),
+    )
 
     # Relationships
     service = relationship("Service", back_populates="user_journeys")
-    slis = relationship("SLI", back_populates="journey", cascade="all, delete-orphan")
-
-    # Constraints per data-model.md
-    __table_args__ = ()  # Constraints disabled for SQLite compatibility
+    capsules = relationship(
+        "Capsule",
+        back_populates="user_journey"
+    )
+    slis = relationship(
+        "SLI",
+        back_populates="user_journey",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
-        return f"<UserJourney {self.name} (confidence={self.confidence_score})>"
+        return f"<UserJourney(id={self.journey_id}, name={self.name}, confidence={self.confidence_score})>"
