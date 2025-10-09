@@ -13,7 +13,7 @@ from .schemas import (
     ErrorResponse,
 )
 from .deps import get_db
-from ..models.artifact import Artifact, ApprovalStatus
+from ..models.artifact import Artifact, ArtifactStatusEnum
 # Note: PRGenerator uses absolute imports and async session,
 # which requires refactoring. Simplified implementation for now.
 # from ..services.pr_generator import PRGenerator, PRConfig, VCSProvider
@@ -62,7 +62,7 @@ async def create_pr(
         )
 
     # Check all artifacts are approved
-    unapproved = [a for a in artifacts if a.approval_status != ApprovalStatus.APPROVED]
+    unapproved = [a for a in artifacts if a.approval_status != ArtifactStatusEnum.APPROVED]
     if unapproved:
         unapproved_ids = [str(a.artifact_id) for a in unapproved]
         raise HTTPException(
