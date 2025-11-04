@@ -1,6 +1,12 @@
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 rootProject.name = 'slo-scout-streaming'
 
 include 'fingerprinting-job'
-include 'capsule-creator-job'
 include 'embedding-pipeline-job'
-include 'lib'

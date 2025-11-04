@@ -13,7 +13,7 @@ RUN ./gradlew dependencies --no-daemon
 COPY src ./src
 
 # Build the application
-RUN ./gradlew shadowJar --no-daemon
+RUN ./gradlew jar --no-daemon
 
 # Runtime image
 FROM openjdk:11-jre-slim

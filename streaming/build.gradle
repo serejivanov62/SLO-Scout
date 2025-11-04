@@ -1,7 +1,6 @@
 plugins {
     id 'java'
     id 'application'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'com.sloscout'
@@ -61,10 +60,9 @@ test {
     }
 }
 
-shadowJar {
+// Create fat JAR without shadow plugin
+jar {
     archiveBaseName.set('slo-scout-streaming')
-    archiveClassifier.set('')
-    mergeServiceFiles()
 
     manifest {
         attributes(
@@ -72,29 +70,32 @@ shadowJar {
         )
     }
 
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+
     // Exclude signed jars to avoid security exceptions
     exclude 'META-INF/*.SF'
     exclude 'META-INF/*.DSA'
     exclude 'META-INF/*.RSA'
+
+    // Merge service files
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 application {
     mainClass = 'com.sloscout.FingerprintingJob'
 }
 
-// Fix task dependencies for shadowJar
+// Fix task dependencies
 tasks.named('startScripts') {
-    dependsOn shadowJar
+    dependsOn jar
 }
 
 tasks.named('distTar') {
-    dependsOn shadowJar
+    dependsOn jar
 }
 
 tasks.named('distZip') {
-    dependsOn shadowJar
-}
-
-tasks.named('startShadowScripts') {
     dependsOn jar
 }
