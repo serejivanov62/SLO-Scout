@@ -1,0 +1,234 @@
+version: '3.8'
+
+services:
+  # ===== Data Layer =====
+
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    container_name: slo-scout-postgres
+    environment:
+      POSTGRES_DB: slo_scout
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: slo-scout-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: slo-scout-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: slo-scout-milvus-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: slo-scout-milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    image: milvusdb/milvus:v2.3.0
+    container_name: slo-scout-milvus
+    depends_on:
+      - milvus-etcd
+      - milvus-minio
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    command: ["milvus", "run", "standalone"]
+
+  # ===== Application Layer =====
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/Dockerfile.python
+    container_name: slo-scout-backend
+    depends_on:
+      - postgres
+      - kafka
+      - milvus
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/slo_scout
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - LOG_LEVEL=INFO
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== Collectors =====
+
+  prometheus-collector:
+    build:
+      context: ./collectors
+      dockerfile: ../infrastructure/docker/Dockerfile.go
+      args:
+        SERVICE: prometheus-collector
+    container_name: slo-scout-prometheus-collector
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_TOPIC=raw-telemetry
+      - LOG_LEVEL=info
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  otlp-collector:
+    build:
+      context: ./collectors
+      dockerfile: ../infrastructure/docker/Dockerfile.go
+      args:
+        SERVICE: otlp-collector
+    container_name: slo-scout-otlp-collector
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_TOPIC=raw-telemetry
+      - GRPC_PORT=4317
+      - HTTP_PORT=4318
+      - LOG_LEVEL=info
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "8081:8080"  # Health
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  log-collector:
+    build:
+      context: ./collectors
+      dockerfile: ../infrastructure/docker/Dockerfile.go
+      args:
+        SERVICE: log-collector
+    container_name: slo-scout-log-collector
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_TOPIC=raw-telemetry
+      - HTTP_PORT=8080
+      - LOG_LEVEL=info
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== Stream Processing (Flink) =====
+
+  jobmanager:
+    build:
+      context: ./streaming
+      dockerfile: ../infrastructure/docker/Dockerfile.java
+    container_name: slo-scout-jobmanager
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/slo_scout
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "8083:8081"  # Flink Web UI
+    command: jobmanager
+    volumes:
+      - flink_data:/opt/flink
+
+  taskmanager:
+    build:
+      context: ./streaming
+      dockerfile: ../infrastructure/docker/Dockerfile.java
+    container_name: slo-scout-taskmanager
+    depends_on:
+      - jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/slo_scout
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    command: taskmanager
+    volumes:
+      - flink_data:/opt/flink
+
+volumes:
+  postgres_data:
+  flink_data:
+
+networks:
+  default:
+    name: slo-scout-network
