@@ -11,11 +11,12 @@ import (
 	"github.com/linkedin/goavro/v2"
 	"github.com/sloscout/collectors/common"
 	"google.golang.org/grpc"
-	"go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	tracecollectorv1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 // OTLPCollector receives OTLP traces via gRPC per T042
 type OTLPCollector struct {
+	tracecollectorv1.UnimplementedTraceServiceServer
 	kafkaProducer *common.KafkaProducer
 	codec         *goavro.Codec
 }
